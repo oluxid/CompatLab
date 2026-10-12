@@ -363,6 +363,8 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         assert!(report.message.is_some());
         assert!(report.duration_ms > 0);
         assert!(report.duration_ms < 10_000);
+        assert!(report.stdout.is_empty());
+        assert!(report.stderr.is_empty());
     }
 
     #[test]
