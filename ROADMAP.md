@@ -108,7 +108,7 @@ These checkmarks reflect the implementation and test results observed during dev
 - [x] Test reports after package installation fails.
 - [x] Test reports after import fails.
 - [x] Test reports after timeout.
-- [ ] Test stdout and stderr preservation.
+- [x] Test stdout and stderr preservation.
 - [ ] Test optional fields and JSON round-tripping for all outcomes.
 - [ ] Document the meaning of each status and stage.
 

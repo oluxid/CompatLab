@@ -536,6 +536,37 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     }
 
     #[test]
+    fn experiment_report_preserves_stdout_and_stderr() {
+        let directory = tempfile::tempdir().unwrap();
+        let package_dir = create_pep517_package(
+            directory.path(),
+            "output-capture-package",
+            "output_capture_package",
+            "import sys\nprint('import stdout')\nprint('import stderr', file=sys.stderr)\n",
+            0,
+        );
+        let report = run_experiment(
+            &Experiment {
+                python_executable: "python".to_owned(),
+                package: package_dir.to_string_lossy().into_owned(),
+                import_name: "output_capture_package".to_owned(),
+            },
+            &ExperimentConfig {
+                timeout_seconds: 60,
+            },
+        );
+
+        assert_eq!(report.status, ExperimentStatus::Passed);
+        assert!(
+            report
+                .stdout
+                .contains("Successfully installed output-capture-package")
+        );
+        assert!(report.stdout.contains("import stdout"));
+        assert!(report.stderr.contains("import stderr"));
+    }
+
+    #[test]
     fn missing_module_returns_failed_import_report() {
         let directory = tempfile::tempdir().unwrap();
         let package_dir = create_local_package(directory.path());
