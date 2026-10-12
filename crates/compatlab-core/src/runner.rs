@@ -191,3 +191,208 @@ fn run_with_timeout(command: &mut Command, timeout_seconds: u64) -> Result<Outpu
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_config() -> ExperimentConfig {
+        ExperimentConfig {
+            timeout_seconds: 10,
+        }
+    }
+
+    fn test_experiment(python_executable: &str) -> Experiment {
+        Experiment {
+            python_executable: python_executable.to_owned(),
+            package: "example-package".to_owned(),
+            import_name: "example_package".to_owned(),
+        }
+    }
+
+    fn create_local_package(directory: &std::path::Path) -> std::path::PathBuf {
+        let package_dir = directory.join("local_test_package");
+        std::fs::create_dir_all(&package_dir).unwrap();
+
+        std::fs::write(
+            package_dir.join("setup.py"),
+            "from setuptools import setup\nsetup(name='local-test-package', version='0.1.0', py_modules=['local_test_package'])\n",
+        )
+        .unwrap();
+
+        std::fs::write(package_dir.join("local_test_package.py"), "VALUE = 42\n").unwrap();
+
+        package_dir
+    }
+
+    #[test]
+    fn invalid_interpreter_returns_error_report() {
+        let experiment = test_experiment("compatlab-python-executable-that-does-not-exist");
+
+        let report = run_experiment(&experiment, &test_config());
+
+        assert_eq!(report.status, ExperimentStatus::Error);
+        assert_eq!(report.stage, ExperimentStage::EnvironmentSetup);
+        assert!(report.python_version.is_none());
+        assert!(report.message.is_some());
+        assert!(report.duration_ms < 10_000);
+    }
+
+    #[test]
+    fn invalid_interpreter_preserves_experiment_details() {
+        let experiment = test_experiment("compatlab-python-executable-that-does-not-exist");
+
+        let report = run_experiment(&experiment, &test_config());
+
+        assert_eq!(report.python_executable, experiment.python_executable);
+        assert_eq!(report.package, "example-package");
+        assert_eq!(report.import_name, "example_package");
+    }
+
+    #[test]
+    fn invalid_interpreter_returns_empty_output_fields() {
+        let experiment = test_experiment("compatlab-python-executable-that-does-not-exist");
+
+        let report = run_experiment(&experiment, &test_config());
+
+        assert!(report.stdout.is_empty());
+        assert!(report.stderr.is_empty());
+    }
+
+    #[test]
+    fn local_package_can_be_installed_and_imported() {
+        let directory = tempfile::tempdir().unwrap();
+        let package_dir = create_local_package(directory.path());
+
+        let experiment = Experiment {
+            python_executable: "python".to_owned(),
+            package: package_dir.to_string_lossy().into_owned(),
+            import_name: "local_test_package".to_owned(),
+        };
+
+        let report = run_experiment(
+            &experiment,
+            &ExperimentConfig {
+                timeout_seconds: 60,
+            },
+        );
+
+        assert_eq!(
+            report.status,
+            ExperimentStatus::Passed,
+            "Experiment failed: {:?}\nstdout: {}\nstderr: {}",
+            report.message,
+            report.stdout,
+            report.stderr
+        );
+
+        assert_eq!(report.stage, ExperimentStage::Completed);
+        assert!(report.python_version.is_some());
+    }
+
+    #[test]
+    fn missing_module_returns_failed_import_report() {
+        let directory = tempfile::tempdir().unwrap();
+        let package_dir = create_local_package(directory.path());
+
+        let experiment = Experiment {
+            python_executable: "python".to_owned(),
+            package: package_dir.to_string_lossy().into_owned(),
+            import_name: "module_that_does_not_exist".to_owned(),
+        };
+
+        let report = run_experiment(
+            &experiment,
+            &ExperimentConfig {
+                timeout_seconds: 60,
+            },
+        );
+
+        assert_eq!(
+            report.status,
+            ExperimentStatus::Failed,
+            "Expected import failure, got: {:?}\nstdout: {}\nstderr: {}",
+            report.message,
+            report.stdout,
+            report.stderr
+        );
+
+        assert_eq!(report.stage, ExperimentStage::Completed);
+        assert!(
+            report
+                .message
+                .as_deref()
+                .unwrap()
+                .contains("Module import failed"),
+            "Unexpected message: {:?}",
+            report.message
+        );
+    }
+
+    #[test]
+    fn run_with_timeout_terminates_long_running_process() {
+        let mut command = {
+            #[cfg(windows)]
+            {
+                let mut command = Command::new("cmd");
+                command.args(["/C", "ping -n 10 127.0.0.1 > NUL"]);
+                command
+            }
+
+            #[cfg(not(windows))]
+            {
+                let mut command = Command::new("sh");
+                command.args(["-c", "sleep 10"]);
+                command
+            }
+        };
+
+        let started = Instant::now();
+        let result = run_with_timeout(&mut command, 1);
+        let elapsed = started.elapsed();
+
+        assert_eq!(
+            result.unwrap_err(),
+            "timeout",
+            "Expected the process to time out"
+        );
+
+        assert!(elapsed.as_secs() < 5, "Timeout took too long: {elapsed:?}");
+    }
+
+    #[test]
+    fn timeout_test_child_process() {
+        if std::env::var("COMPATLAB_TIMEOUT_CHILD").is_ok() {
+            std::thread::sleep(std::time::Duration::from_secs(30));
+        }
+    }
+
+    #[test]
+    fn run_with_timeout_terminates_test_child_process() {
+        let executable = std::env::current_exe().unwrap();
+        let mut command = Command::new(executable);
+
+        command
+            .args([
+                "--exact",
+                "runner::tests::timeout_test_child_process",
+                "--nocapture",
+            ])
+            .env("COMPATLAB_TIMEOUT_CHILD", "1");
+
+        let started = Instant::now();
+        let result = run_with_timeout(&mut command, 1);
+        let elapsed = started.elapsed();
+
+        assert_eq!(
+            result.unwrap_err(),
+            "timeout",
+            "Expected the child test process to time out"
+        );
+
+        assert!(
+            elapsed.as_secs() < 5,
+            "Child process took too long to terminate: {elapsed:?}"
+        );
+    }
+}
