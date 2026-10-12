@@ -420,6 +420,35 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     }
 
     #[test]
+    fn package_installation_failure_returns_failed_report() {
+        let directory = tempfile::tempdir().unwrap();
+        let experiment = Experiment {
+            python_executable: "python".to_owned(),
+            package: directory
+                .path()
+                .join("package-that-does-not-exist")
+                .to_string_lossy()
+                .into_owned(),
+            import_name: "example_package".to_owned(),
+        };
+
+        let report = run_experiment(&experiment, &test_config());
+
+        assert_eq!(report.status, ExperimentStatus::Failed);
+        assert_eq!(report.stage, ExperimentStage::Installation);
+        assert!(report.python_version.is_some());
+        assert!(
+            report
+                .message
+                .as_deref()
+                .unwrap()
+                .contains("Package installation failed")
+        );
+        assert!(!report.stderr.is_empty());
+        assert!(report.duration_ms > 0);
+    }
+
+    #[test]
     fn local_package_can_be_installed_and_imported() {
         let directory = tempfile::tempdir().unwrap();
         let package_dir = create_local_package(directory.path());

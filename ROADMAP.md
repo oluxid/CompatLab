@@ -105,7 +105,7 @@ These checkmarks reflect the implementation and test results observed during dev
 - [x] Test every `ExperimentStage`.
 - [x] Test reports after interpreter inspection fails.
 - [x] Test reports after virtual environment creation fails.
-- [ ] Test reports after package installation fails.
+- [x] Test reports after package installation fails.
 - [ ] Test reports after import fails.
 - [ ] Test reports after timeout.
 - [ ] Test stdout and stderr preservation.
