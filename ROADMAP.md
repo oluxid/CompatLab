@@ -96,7 +96,7 @@ These checkmarks reflect the implementation and test results observed during dev
 - [x] Verify duration is populated on every return path.
 - [x] Handle output collection correctly after process termination.
 - [x] Investigate descendant-process cleanup and orphaned subprocesses.
-- [ ] Verify timeout behavior on Windows, Linux, and macOS.
+- [x] Verify timeout behavior on Windows, Linux, and macOS.
 
 ### 1.3. Complete report lifecycle tests
 
