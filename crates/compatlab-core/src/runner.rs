@@ -151,6 +151,10 @@ fn run_with_timeout(command: &mut Command, timeout_seconds: u64) -> Result<Outpu
     use std::thread;
     use std::time::Duration;
 
+    if timeout_seconds == 0 {
+        return Err("timeout".into());
+    }
+
     let deadline = Instant::now() + Duration::from_secs(timeout_seconds);
     let mut child = command.spawn().map_err(|error| error.to_string())?;
 
@@ -420,5 +424,14 @@ mod tests {
             report.message.as_deref(),
             Some("Failed to run package installation: permission denied")
         );
+    }
+
+    #[test]
+    fn zero_second_timeout_does_not_spawn_process() {
+        let mut command = Command::new("compatlab-command-that-must-not-be-spawned");
+
+        let result = run_with_timeout(&mut command, 0);
+
+        assert_eq!(result.unwrap_err(), "timeout");
     }
 }

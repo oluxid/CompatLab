@@ -66,8 +66,8 @@ These checkmarks reflect the implementation and test results observed during dev
 
 ### 1.2. Finish timeout handling
 
-- [ ] Decide and document whether `timeout_seconds` is a per-operation limit or an overall experiment deadline. The current implementation applies it separately to installation and import.
-- [ ] Define and test zero-second timeout behavior.
+- [x] Decide and document whether `timeout_seconds` is a per-operation limit or an overall experiment deadline. The current implementation applies it separately to installation and import.
+- [x] Define and test zero-second timeout behavior.
 - [ ] Test a process that exits before its deadline.
 - [ ] Test a process that exceeds its deadline.
 - [ ] Verify installation timeouts produce `TimedOut`.
