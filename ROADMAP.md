@@ -89,7 +89,7 @@ These checkmarks reflect the implementation and test results observed during dev
 - [x] Define and test zero-second timeout behavior.
 - [x] Test a process that exits before its deadline.
 - [x] Test a process that exceeds its deadline.
-- [ ] Verify installation timeouts produce `TimedOut`.
+- [x] Verify installation timeouts produce `TimedOut`.
 - [ ] Verify import-check timeouts produce `TimedOut`.
 - [ ] Verify process-launch failures produce `Error`, not `TimedOut`.
 - [ ] Verify the report stage identifies the operation that failed.

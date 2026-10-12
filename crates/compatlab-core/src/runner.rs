@@ -279,6 +279,41 @@ mod tests {
     }
 
     #[test]
+    fn installation_timeout_returns_timed_out_report() {
+        let directory = tempfile::tempdir().unwrap();
+        let package_dir = directory.path().join("slow_install_package");
+        std::fs::create_dir_all(&package_dir).unwrap();
+        std::fs::write(
+            package_dir.join("setup.py"),
+            "import time\ntime.sleep(30)\nfrom setuptools import setup\nsetup(name='slow-install-package', version='0.1.0', py_modules=['slow_install_package'])\n",
+        )
+        .unwrap();
+        std::fs::write(
+            package_dir.join("slow_install_package.py"),
+            "VALUE = 42\n",
+        )
+        .unwrap();
+
+        let report = run_experiment(
+            &Experiment {
+                python_executable: "python".to_owned(),
+                package: package_dir.to_string_lossy().into_owned(),
+                import_name: "slow_install_package".to_owned(),
+            },
+            &ExperimentConfig {
+                timeout_seconds: 3,
+            },
+        );
+
+        assert_eq!(report.status, ExperimentStatus::TimedOut);
+        assert_eq!(report.stage, ExperimentStage::Installation);
+        assert_eq!(
+            report.message.as_deref(),
+            Some("Package installation timed out")
+        );
+    }
+
+    #[test]
     fn missing_module_returns_failed_import_report() {
         let directory = tempfile::tempdir().unwrap();
         let package_dir = create_local_package(directory.path());
