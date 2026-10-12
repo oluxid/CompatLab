@@ -1,4 +1,4 @@
-use crate::environment::create_python_environment;
+use crate::environment::{EnvironmentSetupError, PythonEnvironment, create_python_environment};
 use crate::experiment::{Experiment, ExperimentConfig};
 use crate::interpreter::inspect_interpreter;
 use crate::report::{ExperimentReport, ExperimentStage, ExperimentStatus};
@@ -44,6 +44,14 @@ fn apply_timeout_error(
 
 /// Run a compatibility experiment in an isolated Python virtual environment.
 pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> ExperimentReport {
+    run_experiment_with_environment(experiment, config, create_python_environment)
+}
+
+fn run_experiment_with_environment(
+    experiment: &Experiment,
+    config: &ExperimentConfig,
+    create_environment: impl FnOnce(&str) -> Result<PythonEnvironment, EnvironmentSetupError>,
+) -> ExperimentReport {
     let started = Instant::now();
 
     let mut report = ExperimentReport {
@@ -70,7 +78,7 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
 
     report.python_version = Some(interpreter.version);
 
-    let environment = match create_python_environment(&experiment.python_executable) {
+    let environment = match create_environment(&experiment.python_executable) {
         Ok(environment) => environment,
         Err(error) => {
             report.message = Some(error.message);
@@ -386,6 +394,29 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
         assert!(report.stdout.is_empty());
         assert!(report.stderr.is_empty());
+    }
+
+    #[test]
+    fn environment_creation_failure_returns_error_report() {
+        let report =
+            run_experiment_with_environment(&test_experiment("python"), &test_config(), |_| {
+                Err(EnvironmentSetupError {
+                    message: "Virtual environment creation failed".to_owned(),
+                    stdout: "setup output".to_owned(),
+                    stderr: "setup error".to_owned(),
+                })
+            });
+
+        assert_eq!(report.status, ExperimentStatus::Error);
+        assert_eq!(report.stage, ExperimentStage::EnvironmentSetup);
+        assert!(report.python_version.is_some());
+        assert_eq!(
+            report.message.as_deref(),
+            Some("Virtual environment creation failed")
+        );
+        assert_eq!(report.stdout, "setup output");
+        assert_eq!(report.stderr, "setup error");
+        assert!(report.duration_ms > 0);
     }
 
     #[test]
