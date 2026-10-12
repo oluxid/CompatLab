@@ -100,7 +100,7 @@ These checkmarks reflect the implementation and test results observed during dev
 
 ### 1.3. Complete report lifecycle tests
 
-- [ ] Create a reusable test report fixture.
+- [x] Create a reusable test report fixture.
 - [ ] Test every `ExperimentStatus`.
 - [ ] Test every `ExperimentStage`.
 - [ ] Test reports after interpreter inspection fails.

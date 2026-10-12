@@ -39,6 +39,21 @@ pub struct ExperimentReport {
 mod tests {
     use super::*;
 
+    fn report_fixture(status: ExperimentStatus, stage: ExperimentStage) -> ExperimentReport {
+        ExperimentReport {
+            python_executable: "python".to_owned(),
+            python_version: Some("Python 3.14.7".to_owned()),
+            package: "colorama".to_owned(),
+            import_name: "colorama".to_owned(),
+            status,
+            stage,
+            duration_ms: 1500,
+            stdout: String::new(),
+            stderr: String::new(),
+            message: Some("Package installed and module imported successfully".to_owned()),
+        }
+    }
+
     #[test]
     fn experiment_status_serializes_to_snake_case() {
         assert_eq!(
@@ -65,18 +80,7 @@ mod tests {
 
     #[test]
     fn report_round_trips_through_json() {
-        let report = ExperimentReport {
-            python_executable: "python".to_owned(),
-            python_version: Some("Python 3.14.7".to_owned()),
-            package: "colorama".to_owned(),
-            import_name: "colorama".to_owned(),
-            status: ExperimentStatus::Passed,
-            stage: ExperimentStage::Completed,
-            duration_ms: 1500,
-            stdout: String::new(),
-            stderr: String::new(),
-            message: Some("Package imported successfully".to_owned()),
-        };
+        let report = report_fixture(ExperimentStatus::Passed, ExperimentStage::Completed);
 
         let json = serde_json::to_string(&report).unwrap();
         let decoded: ExperimentReport = serde_json::from_str(&json).unwrap();
@@ -95,18 +99,13 @@ mod tests {
 
     #[test]
     fn report_serializes_optional_fields_as_null() {
-        let report = ExperimentReport {
-            python_executable: "python".to_owned(),
-            python_version: None,
-            package: "example-package".to_owned(),
-            import_name: "example_package".to_owned(),
-            status: ExperimentStatus::Error,
-            stage: ExperimentStage::EnvironmentSetup,
-            duration_ms: 25,
-            stdout: String::new(),
-            stderr: "Python not found".to_owned(),
-            message: None,
-        };
+        let mut report = report_fixture(ExperimentStatus::Error, ExperimentStage::EnvironmentSetup);
+        report.python_version = None;
+        report.package = "example-package".to_owned();
+        report.import_name = "example_package".to_owned();
+        report.duration_ms = 25;
+        report.stderr = "Python not found".to_owned();
+        report.message = None;
 
         let json = serde_json::to_value(&report).unwrap();
 
