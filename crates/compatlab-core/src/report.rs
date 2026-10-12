@@ -67,6 +67,27 @@ mod tests {
     }
 
     #[test]
+    fn every_experiment_status_serializes_to_snake_case() {
+        let cases = [
+            (ExperimentStatus::Passed, "passed"),
+            (ExperimentStatus::Failed, "failed"),
+            (ExperimentStatus::Error, "error"),
+            (ExperimentStatus::TimedOut, "timed_out"),
+        ];
+
+        for (status, expected) in cases {
+            assert_eq!(
+                serde_json::to_string(&status).unwrap(),
+                format!("\"{expected}\"")
+            );
+            assert_eq!(
+                serde_json::from_str::<ExperimentStatus>(&format!("\"{expected}\"")).unwrap(),
+                status
+            );
+        }
+    }
+
+    #[test]
     fn experiment_stage_serializes_to_snake_case() {
         assert_eq!(
             serde_json::to_string(&ExperimentStage::EnvironmentSetup).unwrap(),
