@@ -563,6 +563,9 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         );
 
         assert_eq!(report.stage, ExperimentStage::Completed);
+        assert!(report.python_version.is_some());
+        assert!(report.duration_ms > 0);
+        assert!(report.stderr.contains("ModuleNotFoundError"));
         assert!(
             report
                 .message

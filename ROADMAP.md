@@ -106,7 +106,7 @@ These checkmarks reflect the implementation and test results observed during dev
 - [x] Test reports after interpreter inspection fails.
 - [x] Test reports after virtual environment creation fails.
 - [x] Test reports after package installation fails.
-- [ ] Test reports after import fails.
+- [x] Test reports after import fails.
 - [ ] Test reports after timeout.
 - [ ] Test stdout and stderr preservation.
 - [ ] Test optional fields and JSON round-tripping for all outcomes.
