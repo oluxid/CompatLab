@@ -1,0 +1,9 @@
+[package]
+name = "compatlab-cli"
+version = "0.1.0"
+edition = "2024"
+description = "Command-line interface for CompatLab"
+license = "MIT"
+
+[dependencies]
+compatlab-core = { path = "../compatlab-core" }
