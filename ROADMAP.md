@@ -110,7 +110,7 @@ These checkmarks reflect the implementation and test results observed during dev
 - [x] Test reports after timeout.
 - [x] Test stdout and stderr preservation.
 - [x] Test optional fields and JSON round-tripping for all outcomes.
-- [ ] Document the meaning of each status and stage.
+- [x] Document the meaning of each status and stage.
 
 ### 1.4. Improve failure handling
 

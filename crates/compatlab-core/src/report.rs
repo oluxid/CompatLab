@@ -4,9 +4,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExperimentStatus {
+    /// Installation and import checks both completed successfully.
     Passed,
+    /// A process ran successfully, but installation or the import check returned a failure status.
     Failed,
+    /// An interpreter, environment, or process error prevented a check from completing normally.
     Error,
+    /// Installation or import exceeded its per-operation timeout.
     TimedOut,
 }
 
@@ -14,9 +18,13 @@ pub enum ExperimentStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExperimentStage {
+    /// Interpreter inspection or virtual environment creation.
     EnvironmentSetup,
+    /// Installing the requested package into the isolated environment.
     Installation,
+    /// Importing the requested module after installation.
     ImportCheck,
+    /// Installation and import both completed; `status` records their outcome.
     Completed,
 }
 
