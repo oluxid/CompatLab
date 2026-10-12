@@ -5,27 +5,36 @@ use crate::report::{ExperimentReport, ExperimentStage, ExperimentStatus};
 use std::process::{Command, Output};
 use std::time::Instant;
 
+#[derive(Debug)]
+enum ProcessError {
+    TimedOut(Option<Output>),
+    Failed(String),
+}
+
 fn elapsed_millis(started: Instant) -> u64 {
     started.elapsed().as_millis().max(1) as u64
 }
 
 fn apply_timeout_error(
     report: &mut ExperimentReport,
-    error: &str,
+    error: &ProcessError,
     timeout_message: &str,
     operation: &str,
 ) {
-    report.status = if error == "timeout" {
-        ExperimentStatus::TimedOut
-    } else {
-        ExperimentStatus::Error
-    };
-
-    report.message = Some(if error == "timeout" {
-        timeout_message.to_owned()
-    } else {
-        format!("Failed to run {operation}: {error}")
-    });
+    match error {
+        ProcessError::TimedOut(output) => {
+            report.status = ExperimentStatus::TimedOut;
+            report.message = Some(timeout_message.to_owned());
+            if let Some(output) = output {
+                report.stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+                report.stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+            }
+        }
+        ProcessError::Failed(error) => {
+            report.status = ExperimentStatus::Error;
+            report.message = Some(format!("Failed to run {operation}: {error}"));
+        }
+    }
 }
 
 /// Run a compatibility experiment in an isolated Python virtual environment.
@@ -151,34 +160,42 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
 }
 
 /// Run a child process and kill it if the timeout expires.
-fn run_with_timeout(command: &mut Command, timeout_seconds: u64) -> Result<Output, String> {
+fn run_with_timeout(command: &mut Command, timeout_seconds: u64) -> Result<Output, ProcessError> {
     use std::thread;
     use std::time::Duration;
 
     if timeout_seconds == 0 {
-        return Err("timeout".into());
+        return Err(ProcessError::TimedOut(None));
     }
 
     let deadline = Instant::now() + Duration::from_secs(timeout_seconds);
-    let mut child = command.spawn().map_err(|error| error.to_string())?;
+    let mut child = command
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|error| ProcessError::Failed(error.to_string()))?;
 
     loop {
         match child.try_wait() {
             Ok(Some(_)) => {
-                return child.wait_with_output().map_err(|error| error.to_string());
+                return child
+                    .wait_with_output()
+                    .map_err(|error| ProcessError::Failed(error.to_string()));
             }
             Ok(None) if Instant::now() < deadline => {
                 thread::sleep(Duration::from_millis(50));
             }
             Ok(None) => {
                 let _ = child.kill();
-                let _ = child.wait();
-                return Err("timeout".into());
+                return match child.wait_with_output() {
+                    Ok(output) => Err(ProcessError::TimedOut(Some(output))),
+                    Err(error) => Err(ProcessError::Failed(error.to_string())),
+                };
             }
             Err(error) => {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err(error.to_string());
+                return Err(ProcessError::Failed(error.to_string()));
             }
         }
     }
@@ -465,11 +482,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         let result = run_with_timeout(&mut command, 1);
         let elapsed = started.elapsed();
 
-        assert_eq!(
-            result.unwrap_err(),
-            "timeout",
-            "Expected the process to time out"
-        );
+        assert!(matches!(result.unwrap_err(), ProcessError::TimedOut(_)));
 
         assert!(elapsed.as_secs() < 5, "Timeout took too long: {elapsed:?}");
     }
@@ -498,11 +511,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         let result = run_with_timeout(&mut command, 1);
         let elapsed = started.elapsed();
 
-        assert_eq!(
-            result.unwrap_err(),
-            "timeout",
-            "Expected the child test process to time out"
-        );
+        assert!(matches!(result.unwrap_err(), ProcessError::TimedOut(_)));
 
         assert!(
             elapsed.as_secs() < 5,
@@ -519,7 +528,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
         apply_timeout_error(
             &mut report,
-            "timeout",
+            &ProcessError::TimedOut(None),
             "Package installation timed out",
             "package installation",
         );
@@ -556,10 +565,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         );
 
         assert_eq!(report.status, ExperimentStatus::Error);
-        assert_ne!(
-            report.message.as_deref(),
-            Some("Package installation timed out")
-        );
+        assert!(!matches!(error, ProcessError::TimedOut(_)));
         assert!(
             report
                 .message
@@ -574,7 +580,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
         let result = run_with_timeout(&mut command, 0);
 
-        assert_eq!(result.unwrap_err(), "timeout");
+        assert!(matches!(result.unwrap_err(), ProcessError::TimedOut(None)));
     }
 
     #[test]
@@ -590,5 +596,24 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
         assert!(output.status.success());
         assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "finished");
+    }
+
+    #[test]
+    fn run_with_timeout_captures_output_after_terminating_process() {
+        let mut command = Command::new("python");
+        command.args([
+            "-c",
+            "import time; print('before timeout', flush=True); time.sleep(30)",
+        ]);
+
+        let error = run_with_timeout(&mut command, 1).unwrap_err();
+        let ProcessError::TimedOut(Some(output)) = error else {
+            panic!("Expected a timeout with collected process output");
+        };
+
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim(),
+            "before timeout"
+        );
     }
 }

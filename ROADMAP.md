@@ -94,7 +94,7 @@ These checkmarks reflect the implementation and test results observed during dev
 - [x] Verify process-launch failures produce `Error`, not `TimedOut`.
 - [x] Verify the report stage identifies the operation that failed.
 - [x] Verify duration is populated on every return path.
-- [ ] Handle output collection correctly after process termination.
+- [x] Handle output collection correctly after process termination.
 - [ ] Investigate descendant-process cleanup and orphaned subprocesses.
 - [ ] Verify timeout behavior on Windows, Linux, and macOS.
 
