@@ -434,4 +434,19 @@ mod tests {
 
         assert_eq!(result.unwrap_err(), "timeout");
     }
+
+    #[test]
+    fn run_with_timeout_returns_output_when_process_exits_before_deadline() {
+        let mut command = Command::new("python");
+        command
+            .args(["-c", "print('finished')"])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        let output =
+            run_with_timeout(&mut command, 5).expect("process should finish before the timeout");
+
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "finished");
+    }
 }
