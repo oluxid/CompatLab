@@ -162,8 +162,8 @@ mod tests {
             ExperimentStage::Completed,
         ];
 
-        for status in statuses.iter().cloned() {
-            for stage in stages.iter().cloned() {
+        for status in statuses.iter() {
+            for stage in stages.iter() {
                 for include_optional_fields in [false, true] {
                     let mut report = report_fixture(status.clone(), stage.clone());
                     if !include_optional_fields {

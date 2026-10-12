@@ -516,7 +516,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
             directory.path(),
             "slow-import-package",
             "slow_import_package",
-            "import time\ntime.sleep(30)\n",
+            "import time\ntime.sleep(60)\n",
             0,
         );
 
@@ -526,7 +526,9 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
                 package: package_dir.to_string_lossy().into_owned(),
                 import_name: "slow_import_package".to_owned(),
             },
-            &ExperimentConfig { timeout_seconds: 3 },
+            &ExperimentConfig {
+                timeout_seconds: 30,
+            },
         );
 
         assert_eq!(report.status, ExperimentStatus::TimedOut);
