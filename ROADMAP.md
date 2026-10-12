@@ -1,22 +1,28 @@
-from pathlib import Path
+# CompatLab Roadmap
 
-content = r'''# CompatLab Roadmap
-
-> **Vision:** CompatLab is a reusable compatibility experiment engine. It starts by powering CompatPy's Python compatibility checks, then grows to support additional languages and runtimes such as JavaScript/Node.js, GDScript/Godot, and Rust.
+> **Vision:** CompatLab is the main, language-neutral compatibility testing platform in the Compat ecosystem. It can test a single-language project or coordinate compatibility experiments across a multilingual repository. Language-specific capabilities are provided by adapters such as Python/CompatPy, JavaScript/Node.js, GDScript/Godot, and Rust.
 >
-> **Guiding principle:** Python-first, not Python-only.
+> **Guiding principle:** Build one reliable experiment platform, support single-language projects as first-class citizens, and grow into multilingual and cross-component testing without pretending every language works the same way.
+>
+> **Scope rule:** CompatLab owns project discovery, experiment planning and orchestration, process/resource controls, normalized outcomes, reports, and the adapter contract. Adapters own language- and toolchain-specific behavior. Consumer tools such as CompatPy may request experiments and present results, but must not need to reimplement the engine.
 
-This roadmap describes the intended journey from the current prototype to a mature, cross-platform compatibility engine. Checkboxes track planned work; they should only be marked complete when the work is implemented and verified in the repository.
+This roadmap describes the intended journey from the current prototype to a mature, cross-platform compatibility platform. It includes core correctness, stable contracts, single-language testing, multilingual project discovery, cross-language integration testing, adapter development, security, release engineering, and long-term ecosystem capabilities. Checkboxes are implementation claims, not aspirations: mark an item complete only after the work exists and its acceptance criteria have been verified. Future capabilities remain planned until implemented.
 
 ## Project principles
 
-- **Python first, never Python-only.** The first useful implementation targets Python, while avoiding unnecessary assumptions that every future language behaves like Python.
-- **Windows, Linux, and macOS are first-class platforms.** Cross-platform support is part of the engineering process, not final polish.
-- **Preserve the current workspace.** Keep the existing `compatlab-core` and `compatlab-cli` structure unless a concrete need justifies a change.
-- **Prefer small, testable steps.** Each milestone should have a clear completion gate.
-- **Avoid premature abstraction.** Design language adapters after the Python lifecycle teaches us what genuinely belongs in the shared engine.
-- **Keep responsibilities clear.** CompatLab executes experiments and reports results; CompatPy and future tools decide which experiments to request and how to present results.
-- **Be honest about isolation.** A Python virtual environment is dependency isolation, not a security sandbox.
+- **Single-language and multilingual projects are equally valid.** A repository with one language must not pay unnecessary complexity costs for multilingual support.
+- **Python first, never Python-only.** Python is the first adapter and proves the architecture; it is not the permanent center of the product.
+- **Windows, Linux, and macOS are first-class platforms.** Cross-platform behavior must be tested, not inferred from a successful build.
+- **Preserve the current workspace.** Keep `compatlab-core` and `compatlab-cli` unless an evidence-based change is justified.
+- **No corner-cutting on correctness.** Do not weaken a valid test to make it pass. Diagnose the implementation or the test setup and fix the real defect.
+- **One logical change per commit.** Inspect focused diffs, run relevant tests and quality checks, and only then commit.
+- **Prefer explicit contracts over clever abstractions.** Model real shared behavior and keep language-specific semantics in adapters.
+- **Separate component checks from integration checks.** A component passing alone does not prove it works with the other components in a project.
+- **Make unsupported behavior explicit.** An unavailable runtime, unsupported project type, skipped check, and failed check are different outcomes.
+- **Be honest about evidence.** A smoke test does not prove universal compatibility. Reports must say what was tested and what remains unknown.
+- **Be honest about isolation.** A virtual environment or temporary directory is not a security sandbox.
+- **Secure by default where feasible.** Avoid leaking secrets, executing user code unintentionally, or implying that arbitrary package builds are safe.
+- **Keep external consumers decoupled.** CompatPy and future tools should use documented interfaces, not scrape human-readable terminal output or depend on private Rust internals.
 
 ## Roadmap at a glance
 
@@ -35,6 +41,19 @@ This roadmap describes the intended journey from the current prototype to a matu
 13. [Rust toolchain and crate adapter](#phase-13-rust-toolchain-and-crate-adapter)
 14. [Wider Compat ecosystem](#phase-14-wider-compat-ecosystem)
 15. [Advanced compatibility intelligence](#phase-15-advanced-compatibility-intelligence)
+16. [Project and workspace model](#phase-16-project-and-workspace-model)
+17. [Project discovery and component inventory](#phase-17-project-discovery-and-component-inventory)
+18. [Multilingual project orchestration](#phase-18-multilingual-project-orchestration)
+19. [Cross-language integration experiments](#phase-19-cross-language-integration-experiments)
+20. [Adapter lifecycle and capability contract](#phase-20-adapter-lifecycle-and-capability-contract)
+21. [Configuration, policy, and reproducible plans](#phase-21-configuration-policy-and-reproducible-plans)
+22. [Security, trust boundaries, and sandbox strategy](#phase-22-security-trust-boundaries-and-sandbox-strategy)
+23. [Execution graph, artifacts, and dependency relationships](#phase-23-execution-graph-artifacts-and-dependency-relationships)
+24. [Project-level reporting and result interpretation](#phase-24-project-level-reporting-and-result-interpretation)
+25. [Quality engineering and acceptance strategy](#phase-25-quality-engineering-and-acceptance-strategy)
+26. [Performance, scale, and resource governance](#phase-26-performance-scale-and-resource-governance)
+27. [Developer experience and ecosystem adoption](#phase-27-developer-experience-and-ecosystem-adoption)
+28. [Long-term integrations and research candidates](#phase-28-long-term-integrations-and-research-candidates)
 
 ---
 
@@ -851,16 +870,23 @@ Every item in this phase is conditional. Implement it when there is a clear use 
 
 ## Recommended execution order
 
-1. **Finish Phase 1.** Complete report tests, input validation, timeout semantics, and cleanup. Existing passing tests are the starting point, not the finish line.
-2. **Complete Phase 2.** Specify the JSON contract before multiple programs depend on it.
-3. **Build Phase 3.** Make the CLI useful for real experiments.
-4. **Complete Phases 4 and 5.** Improve Python coverage and isolation.
-5. **Run Phase 6 continuously.** Add cross-platform CI early and expand it as functionality grows.
-6. **Complete Phases 7 and 8.** Integrate CompatPy and add batch/matrix execution.
-7. **Complete Phase 9.** Refactor when real requirements establish a useful adapter boundary.
-8. **Ship Phase 10.** Release a dependable stable version.
-9. **Build Phases 11, 12, and 13.** Add JavaScript, GDScript, and Rust adapters one at a time.
-10. **Grow Phases 14 and 15.** Expand the ecosystem and advanced capabilities as actual needs emerge.
+1. **Finish Phase 1.** Complete timeout status mapping, report lifecycle coverage, input validation, process cleanup, and failure-path tests.
+2. **Specify Phase 2.** Document the initial experiment and report contracts before external consumers depend on them.
+3. **Build Phase 3.** Make the CLI useful for validation, execution, and report inspection, adding discovery commands when the project model is ready.
+4. **Strengthen Phases 4-6 continuously.** Improve Python capability and isolation while maintaining Windows, Linux, and macOS CI.
+5. **Integrate CompatPy in Phase 7.** Prove the consumer boundary using the documented contract.
+6. **Build Phase 8.** Make batch and matrix execution reliable before coordinating whole projects.
+7. **Complete Phase 9 from evidence.** Introduce the smallest useful adapter boundary while preserving the existing workspace and working Python behavior.
+8. **Complete the initial release requirements in Phase 10.** Publish only what is implemented, tested, documented, and supported.
+9. **Build Phases 16-17.** Introduce the project/component model and safe, explainable discovery.
+10. **Build Phase 18.** Coordinate independent component experiments and aggregate outcomes without hiding unsupported or untested scope.
+11. **Prove Phase 19 with one real integration scenario.** Keep integration checks separate from independent component checks.
+12. **Harden Phases 20-25.** Establish adapter conformance, configuration, trust boundaries, execution graphs when needed, report semantics, and quality gates.
+13. **Implement Phases 11-13 incrementally.** Add JavaScript/Node.js, GDScript/Godot, and Rust adapters one at a time using the same conformance and cross-platform standards.
+14. **Grow Phases 14-15 and 26-27.** Expand ecosystem integrations, compatibility intelligence, performance, and contributor experience based on measured needs.
+15. **Evaluate Phase 28 candidates individually.** Remote execution, hosted services, additional languages, and advanced automation require explicit use cases and acceptance criteria.
+
+This order is deliberately dependency-aware, not a demand to delay all releases until every phase is complete. The project should deliver useful increments, but must not skip a prerequisite simply to claim a feature sooner.
 
 ## Architectural rule
 
@@ -872,13 +898,904 @@ That is how CompatLab can grow without becoming one enormous collection of langu
 
 ## Current next step
 
-Return to **Phase 1: Core reliability and correctness**. Do not add new language adapters yet. Make the current engine reliable, document its contract, and keep each change small enough to test and review.
+Continue with **Phase 1: Core reliability and correctness**. In particular, finish timeout-status coverage for installation and import operations, verify stage/duration reporting, and test cleanup. Do not start a broad refactor or add a second adapter yet. Make the current engine reliable first, then specify the stable experiment/report contract before extracting language-specific behavior.
+
+The longer-term architectural destination is explicit: **CompatLab is the main application and engine; language adapters are optional capabilities; a project can contain one or many language components; and project-wide integration checks are distinct from individual component checks.** This destination guides design decisions now, but does not justify implementing every future abstraction before it is needed.
 
 ---
 
 _This roadmap is an evolving plan, not a promise that every future feature will be implemented. Revisit it as CompatLab and its consumers reveal real requirements._
-'''
 
-path = Path("/mnt/data/ROADMAP.md")
-path.write_text(content, encoding="utf-8")
-print(f"Created {path} ({len(content.splitlines())} lines, {path.stat().st_size} bytes)")
+---
+
+## Phase 16: Project and workspace model
+
+**Goal:** Introduce a first-class project model without making a single package or directory unnecessarily complicated.
+
+A project is the root unit a user asks CompatLab to inspect. It may contain one component or many. A component is a testable unit owned by a language adapter, such as a Python package, Node.js workspace, Rust crate, or Godot project. A repository may contain nested projects, shared tooling, generated code, examples, and unrelated directories, so discovery must be explicit and explainable.
+
+### 16.1. Define project concepts
+
+- [ ] Define `Project` independently of a language-specific experiment.
+- [ ] Define a stable project identifier and display name.
+- [ ] Define project root and allowed filesystem boundaries.
+- [ ] Define `Component` and its stable identifier.
+- [ ] Define component kind, language, root directory, and adapter identifier.
+- [ ] Define relationships between components.
+- [ ] Define project metadata separately from discovered facts.
+- [ ] Distinguish user-declared metadata from auto-detected metadata.
+- [ ] Define a project manifest format and schema version.
+- [ ] Decide whether a manifest is optional, required, or generated by discovery.
+- [ ] Support an explicit manifest that overrides ambiguous automatic detection.
+- [ ] Define how nested projects are represented.
+- [ ] Define how a component may belong to more than one logical project.
+- [ ] Define path normalization and path identity across Windows, Linux, and macOS.
+- [ ] Define behavior for symlinks and paths escaping the project root.
+- [ ] Define how case-sensitive and case-insensitive filesystems affect matching.
+- [ ] Document the difference between repository, project, component, experiment, and report.
+
+### 16.2. Model project composition
+
+- [ ] Represent a single-language project as one project with one or more components.
+- [ ] Represent a multilingual project without a special alternate execution engine.
+- [ ] Support multiple components written in the same language.
+- [ ] Support multiple components using different versions of the same runtime.
+- [ ] Support components that share dependencies or generated artifacts.
+- [ ] Support optional components.
+- [ ] Support explicitly excluded components.
+- [ ] Define how examples, tests, benchmarks, and production components are classified.
+- [ ] Define how monorepos and nested workspaces are represented.
+- [ ] Avoid assuming one repository equals one package.
+- [ ] Avoid assuming every directory with a manifest should be tested.
+- [ ] Define whether generated/vendor directories are ignored by default.
+- [ ] Provide a way to inspect the detected project model without executing code.
+
+### 16.3. Manifest and discovery precedence
+
+- [ ] Define precedence between CLI flags, explicit project manifest, adapter metadata, and heuristics.
+- [ ] Report conflicts between user configuration and detected metadata.
+- [ ] Never silently overwrite explicit user configuration with a heuristic.
+- [ ] Validate the manifest before execution.
+- [ ] Provide clear errors for unknown adapter names and unsupported manifest versions.
+- [ ] Provide migration guidance when the manifest schema changes.
+- [ ] Include a complete minimal manifest example.
+- [ ] Include a multilingual manifest example.
+- [ ] Include examples for explicit exclusions and component relationships.
+- [ ] Test round-trip serialization of project manifests.
+
+### 16.4. Project model acceptance criteria
+
+- [ ] A single-language project can be represented without multilingual-only fields being required.
+- [ ] A multilingual repository can represent each component independently.
+- [ ] Component identifiers remain stable across repeated discovery when the inputs have not changed.
+- [ ] Ambiguous discovery is reported rather than silently guessed.
+- [ ] The project model can be serialized and consumed outside the Rust library.
+- [ ] Unit and integration tests cover manifest parsing, validation, and path handling.
+
+**Completion gate:** CompatLab can describe a project as one or more independently testable components, regardless of how many languages it contains, using a documented and versioned model.
+
+---
+
+## Phase 17: Project discovery and component inventory
+
+**Goal:** Identify what is present in a repository, which adapters may handle it, and what evidence supports each detection.
+
+Discovery must be a separate operation from execution. Listing a repository must not install dependencies, run build scripts, or execute project code.
+
+### 17.1. Safe filesystem discovery
+
+- [ ] Walk project directories using an explicit traversal policy.
+- [ ] Respect user-defined include and exclude paths.
+- [ ] Define default exclusions for version-control internals, build output, caches, virtual environments, vendor directories, and generated artifacts.
+- [ ] Make exclusions visible and configurable.
+- [ ] Prevent accidental traversal outside the selected root through symlinks.
+- [ ] Detect permission errors and report incomplete discovery.
+- [ ] Handle very large repositories without unbounded memory use.
+- [ ] Avoid following symlink loops.
+- [ ] Define behavior for junctions and reparse points on Windows.
+- [ ] Normalize discovered paths for stable reporting.
+- [ ] Support a dry-run or discovery-only mode.
+- [ ] Ensure discovery does not modify the repository.
+- [ ] Record discovery warnings and skipped paths.
+- [ ] Allow users to inspect why a path was included or excluded.
+
+### 17.2. Language and project markers
+
+- [ ] Define evidence markers for each adapter.
+- [ ] Detect Python project metadata and requirements files.
+- [ ] Detect JavaScript/Node.js manifests and lockfiles.
+- [ ] Detect Rust `Cargo.toml` files and workspace declarations.
+- [ ] Detect Godot project configuration and GDScript files.
+- [ ] Treat file extensions as evidence, not proof of an executable project.
+- [ ] Distinguish language presence from a runnable component.
+- [ ] Distinguish an adapter being installed from an adapter being able to run.
+- [ ] Support multiple markers in one directory.
+- [ ] Handle ambiguous or conflicting markers.
+- [ ] Record detection confidence or evidence without pretending heuristics are infallible.
+- [ ] Let users override automatic component classification.
+- [ ] Define how unknown languages are represented.
+- [ ] Keep unknown files visible in discovery output without claiming support.
+
+### 17.3. Workspace and monorepo discovery
+
+- [ ] Detect Python workspace and package layouts.
+- [ ] Detect npm workspaces and nested package manifests.
+- [ ] Detect Cargo workspaces and member crates.
+- [ ] Detect repositories with multiple independent projects.
+- [ ] Detect common source layouts such as `apps/`, `packages/`, `crates/`, and `services/` only as hints.
+- [ ] Avoid hard-coding one repository layout as universal.
+- [ ] Identify likely shared configuration files.
+- [ ] Identify lockfiles and the components they govern.
+- [ ] Identify generated code and build outputs where practical.
+- [ ] Report overlapping component roots.
+- [ ] Define whether parent and child components may both run experiments.
+- [ ] Allow users to split or merge detected components through configuration.
+
+### 17.4. Discovery output and tests
+
+- [ ] Provide machine-readable discovery output.
+- [ ] Provide human-readable component inventory.
+- [ ] Include detection evidence, root paths, adapter identifiers, and warnings.
+- [ ] Test empty repositories.
+- [ ] Test repositories with one supported language.
+- [ ] Test multilingual repositories.
+- [ ] Test nested workspaces.
+- [ ] Test misleading file extensions and incomplete manifests.
+- [ ] Test excluded directories and symlinks.
+- [ ] Test inaccessible paths.
+- [ ] Test deterministic output ordering.
+- [ ] Test that discovery does not execute subprocesses or modify files.
+
+**Completion gate:** Users can inspect a trustworthy component inventory before any potentially expensive or code-executing experiment begins.
+
+---
+
+## Phase 18: Multilingual project orchestration
+
+**Goal:** Coordinate independent component experiments and produce a single project-level result without conflating component success with whole-project success.
+
+### 18.1. Plan generation
+
+- [ ] Define a `ProjectPlan` separate from execution results.
+- [ ] Convert a project manifest and discovery results into a plan.
+- [ ] Assign stable identifiers to planned experiments.
+- [ ] Record why each experiment was included.
+- [ ] Record prerequisites and declared dependencies.
+- [ ] Support user-selected components.
+- [ ] Support selecting a subset of runtimes or versions.
+- [ ] Support excluding expensive or optional checks.
+- [ ] Validate the complete plan before executing any experiment.
+- [ ] Report unsupported components before execution.
+- [ ] Provide a plan preview and estimated experiment count.
+- [ ] Define whether an invalid component blocks the entire plan or only that component.
+- [ ] Ensure a plan can be serialized and rerun.
+- [ ] Define plan versioning and migration rules.
+
+### 18.2. Independent component execution
+
+- [ ] Execute each component using its matching adapter.
+- [ ] Preserve independent component outcomes.
+- [ ] Prevent one component's working directory or environment from leaking into another.
+- [ ] Allow an individual component to fail without erasing unrelated results.
+- [ ] Define fail-fast and continue-on-error policies.
+- [ ] Define how user cancellation affects active and pending components.
+- [ ] Keep experiment IDs stable across retries of the same plan.
+- [ ] Record skipped components and their reasons.
+- [ ] Handle missing adapters and runtimes explicitly.
+- [ ] Make execution order deterministic when ordering matters.
+- [ ] Permit bounded concurrency after isolation and cancellation are reliable.
+- [ ] Ensure project-level status is derived from documented rules.
+
+### 18.3. Project-level outcome semantics
+
+- [ ] Define statuses for all-passed, partially-passed, failed, timed-out, blocked, skipped, and incomplete projects.
+- [ ] Distinguish a project with unsupported components from a fully tested project.
+- [ ] Distinguish component failure from plan/configuration failure.
+- [ ] Distinguish infrastructure failure from incompatibility.
+- [ ] Define whether warnings can coexist with success.
+- [ ] Define how optional components affect the aggregate result.
+- [ ] Define how skipped experiments affect confidence.
+- [ ] Never label an incompletely tested project as fully compatible.
+- [ ] Include the exact scope of tested components in the summary.
+- [ ] Test all combinations of component outcomes that affect aggregate status.
+
+### 18.4. Project plan reproducibility
+
+- [ ] Store the discovery snapshot or sufficient metadata to explain the plan.
+- [ ] Store the selected adapter versions.
+- [ ] Store relevant runtime selections.
+- [ ] Store the plan configuration and schema version.
+- [ ] Detect when source manifests change after planning.
+- [ ] Define whether execution uses a frozen plan or re-discovers components.
+- [ ] Make re-planning explicit.
+- [ ] Support comparing plans from different commits.
+- [ ] Document what is and is not guaranteed reproducible.
+
+**Completion gate:** A multilingual repository can run independent component experiments through one plan and receive a truthful aggregate report, with no loss of per-component details.
+
+---
+
+## Phase 19: Cross-language integration experiments
+
+**Goal:** Test combinations of components that must work together, not only whether each component works independently.
+
+This phase follows independent component testing. Cross-language integration is more complex because it may require building artifacts, launching services, configuring protocols, and coordinating multiple processes.
+
+### 19.1. Define integration relationships
+
+- [ ] Define an explicit relationship between two or more components.
+- [ ] Represent producer and consumer roles where applicable.
+- [ ] Represent build-time, link-time, load-time, and runtime dependencies.
+- [ ] Represent a Python package that loads a native Rust extension.
+- [ ] Represent a frontend that communicates with a backend service.
+- [ ] Represent generated bindings or foreign-function interfaces.
+- [ ] Represent shared schemas and protocol contracts.
+- [ ] Represent a Godot project that consumes native or networked components where appropriate.
+- [ ] Define integration test inputs, setup steps, checks, and cleanup.
+- [ ] Keep integration declarations separate from assumptions inferred by discovery.
+- [ ] Report unknown relationships instead of inventing them.
+- [ ] Allow integration checks to be optional or required by policy.
+
+### 19.2. Integration lifecycle
+
+- [ ] Define setup, build, launch, readiness, check, teardown, and cleanup stages.
+- [ ] Give each stage a timeout and diagnostic record.
+- [ ] Support dependencies between stages.
+- [ ] Ensure teardown runs after success, failure, timeout, or cancellation.
+- [ ] Handle partial startup when only some services launch.
+- [ ] Capture logs per component and per stage.
+- [ ] Avoid conflating readiness failure with application incompatibility.
+- [ ] Define how ports, temporary paths, and other resources are allocated.
+- [ ] Avoid fixed-port collisions during parallel tests.
+- [ ] Test process cleanup when one service times out.
+- [ ] Define behavior when a dependent component cannot be built.
+- [ ] Ensure teardown errors do not erase the primary failure.
+
+### 19.3. Integration contracts
+
+- [ ] Define generic integration metadata without pretending protocols are identical.
+- [ ] Support explicit health checks or readiness probes.
+- [ ] Support command-based checks where appropriate.
+- [ ] Support protocol-specific checks through adapters.
+- [ ] Define input/output artifact contracts between components.
+- [ ] Validate that required artifacts exist before downstream execution.
+- [ ] Record versions and hashes of produced artifacts where useful.
+- [ ] Distinguish ABI, API, protocol, and data-format compatibility.
+- [ ] Avoid claiming cross-language compatibility solely from successful builds.
+- [ ] Provide sample integration fixtures for native extension and service-based projects.
+
+### 19.4. Integration test matrix
+
+- [ ] Test each component independently before the combined integration test.
+- [ ] Test a known-good combination.
+- [ ] Test a component that builds but fails to load.
+- [ ] Test a consumer with an incompatible producer version.
+- [ ] Test service readiness timeout.
+- [ ] Test startup failure and teardown.
+- [ ] Test artifact missing or corrupt.
+- [ ] Test incompatible protocol/schema versions.
+- [ ] Test cancellation during setup and during execution.
+- [ ] Test cross-platform integration where the toolchains are supported.
+- [ ] Define how integration outcomes roll up into project status.
+
+**Completion gate:** CompatLab can represent and execute at least one real multi-component integration scenario, clean up all participating processes, and report the precise stage and relationship that failed.
+
+---
+
+## Phase 20: Adapter lifecycle and capability contract
+
+**Goal:** Establish one stable internal adapter contract while allowing each language to expose only the capabilities it genuinely supports.
+
+### 20.1. Adapter identity and metadata
+
+- [ ] Define adapter ID, display name, language, version, and contract version.
+- [ ] Define supported project markers and component types.
+- [ ] Define supported operating systems and CPU architectures.
+- [ ] Define runtime discovery capabilities.
+- [ ] Define supported experiment types.
+- [ ] Define adapter configuration schema.
+- [ ] Define required external tools.
+- [ ] Define how missing tools are diagnosed.
+- [ ] Define how adapters declare optional features.
+- [ ] Define how an adapter reports its own version and build metadata.
+- [ ] Avoid relying on display names as machine identifiers.
+
+### 20.2. Adapter lifecycle
+
+- [ ] Define discovery hooks.
+- [ ] Define validation hooks.
+- [ ] Define runtime inspection hooks.
+- [ ] Define environment preparation hooks.
+- [ ] Define execution hooks.
+- [ ] Define output collection hooks.
+- [ ] Define cleanup hooks.
+- [ ] Define cancellation and timeout integration.
+- [ ] Define which lifecycle methods may mutate files or launch processes.
+- [ ] Define cleanup behavior if preparation only partially succeeds.
+- [ ] Define how adapter errors are normalized.
+- [ ] Ensure adapter errors retain language-specific diagnostic detail.
+
+### 20.3. Capabilities and unsupported operations
+
+- [ ] Define capability negotiation before an experiment starts.
+- [ ] Let adapters declare unsupported experiment types.
+- [ ] Distinguish unsupported, unavailable, disabled, and failed capabilities.
+- [ ] Avoid silent fallback to a weaker check.
+- [ ] Record when a requested check is skipped or downgraded.
+- [ ] Define a capability matrix in documentation.
+- [ ] Test capability negotiation with fake adapters.
+- [ ] Ensure the core does not need language-name conditionals for ordinary lifecycle orchestration.
+
+### 20.4. Extension delivery strategy
+
+- [ ] Start with statically compiled internal adapters.
+- [ ] Keep the adapter boundary suitable for future separate crates.
+- [ ] Do not implement a dynamic plugin loader without a concrete use case.
+- [ ] If external adapters become necessary, define discovery, installation, trust, versioning, and compatibility rules first.
+- [ ] Never load an external adapter silently.
+- [ ] Define how adapter crashes are contained if external execution is supported.
+- [ ] Define signature or provenance expectations for distributed adapters if applicable.
+- [ ] Document the difference between built-in adapters and third-party extensions.
+
+### 20.5. Adapter conformance suite
+
+- [ ] Create reusable conformance tests for adapter metadata.
+- [ ] Test invalid configuration rejection.
+- [ ] Test success, failure, timeout, cancellation, and unsupported outcomes.
+- [ ] Test diagnostic preservation.
+- [ ] Test cleanup after partial setup.
+- [ ] Test deterministic report structure.
+- [ ] Provide a reference adapter fixture.
+- [ ] Require every new adapter to pass the conformance suite before being considered supported.
+
+**Completion gate:** A second adapter can be added without rewriting the core lifecycle, and it must pass a shared conformance suite.
+
+---
+
+## Phase 21: Configuration, policy, and reproducible plans
+
+**Goal:** Make behavior configurable and predictable for individual developers, CI, and large repositories.
+
+### 21.1. Configuration sources
+
+- [ ] Define project configuration file discovery.
+- [ ] Define CLI override behavior.
+- [ ] Define environment-variable configuration where justified.
+- [ ] Define precedence and conflict reporting.
+- [ ] Avoid ambiguous implicit defaults.
+- [ ] Provide `config show` or equivalent effective-configuration output.
+- [ ] Redact secrets from configuration output.
+- [ ] Validate all configuration before execution.
+- [ ] Version the configuration schema.
+- [ ] Provide migration instructions for breaking configuration changes.
+
+### 21.2. Compatibility policies
+
+- [ ] Define a policy for required and optional components.
+- [ ] Define allowed and required runtime ranges.
+- [ ] Define required experiment types.
+- [ ] Define whether warnings or skipped checks fail CI.
+- [ ] Define policy for unsupported adapters.
+- [ ] Define policy for network access.
+- [ ] Define resource and time budgets.
+- [ ] Define retry policy only for explicitly retryable failures.
+- [ ] Explain which policy rule caused a project to pass or fail.
+- [ ] Keep policy decisions separate from raw experiment outcomes.
+
+### 21.3. Plan locking and repeatability
+
+- [ ] Define whether a plan can be locked to exact runtime and adapter versions.
+- [ ] Record dependency lockfile identity where applicable.
+- [ ] Record source revision or working-tree state when available.
+- [ ] Detect changed inputs before execution.
+- [ ] Define behavior for dirty working trees.
+- [ ] Support exporting a plan for CI.
+- [ ] Support re-running a stored plan.
+- [ ] Distinguish exact reproducibility from best-effort repeatability.
+- [ ] Define how runtime auto-discovery results are frozen in a plan.
+- [ ] Test that configuration changes invalidate or regenerate affected plans.
+
+### 21.4. Configuration testing
+
+- [ ] Test default configuration.
+- [ ] Test each override source.
+- [ ] Test precedence conflicts.
+- [ ] Test unknown keys.
+- [ ] Test invalid types and ranges.
+- [ ] Test schema-version mismatches.
+- [ ] Test secret redaction.
+- [ ] Test that invalid configuration prevents execution from starting.
+- [ ] Keep examples synchronized with the schema and implementation.
+
+**Completion gate:** Users can inspect the effective configuration, understand why a plan was generated, and reproduce the intended experiment selection.
+
+---
+
+## Phase 22: Security, trust boundaries, and sandbox strategy
+
+**Goal:** Make security claims accurate, minimize accidental damage, and provide a path toward stronger isolation for untrusted code.
+
+### 22.1. Threat model
+
+- [ ] Document whether CompatLab is intended to run trusted projects, untrusted repositories, or both.
+- [ ] Identify code execution points such as package installation, build scripts, imports, tests, and project launch commands.
+- [ ] Identify filesystem, network, process, credential, and resource risks.
+- [ ] Identify threats from malicious dependencies and compromised toolchains.
+- [ ] Identify risks from adapter bugs and malformed reports.
+- [ ] Define the trust boundary between CompatLab, adapters, and tested code.
+- [ ] Document which threats the current implementation does not mitigate.
+- [ ] Review the threat model whenever new execution modes are added.
+
+### 22.2. Safe defaults
+
+- [ ] Require explicit project root and clearly scoped paths.
+- [ ] Avoid executing project code during discovery.
+- [ ] Avoid invoking shell strings when structured process arguments are sufficient.
+- [ ] Avoid writing outside designated temporary and output directories by default.
+- [ ] Avoid changing global runtime or package-manager configuration.
+- [ ] Avoid embedding credentials in command lines where possible.
+- [ ] Redact tokens and secrets from logs and reports.
+- [ ] Do not store environment dumps by default.
+- [ ] Define behavior for symbolic links and path traversal.
+- [ ] Make network use and package downloads visible.
+- [ ] Require explicit configuration for privileged or host-mutating operations.
+- [ ] Keep cleanup scoped to directories created by CompatLab.
+
+### 22.3. Isolation levels
+
+- [ ] Document the guarantees of a temporary directory.
+- [ ] Document the guarantees of a language virtual environment.
+- [ ] Define an isolation capability model per adapter.
+- [ ] Evaluate process-level restrictions where portable.
+- [ ] Evaluate container-based execution for stronger isolation.
+- [ ] Evaluate OS sandboxing mechanisms where practical.
+- [ ] Evaluate disposable virtual machines or remote workers for high-risk jobs.
+- [ ] Make isolation level visible in reports.
+- [ ] Avoid claiming a container or virtual environment is perfectly secure.
+- [ ] Define how network and filesystem access restrictions are configured.
+- [ ] Test isolation boundaries with controlled fixtures before making security claims.
+
+### 22.4. Secret and artifact handling
+
+- [ ] Define a redaction policy for known secret patterns.
+- [ ] Avoid including credentials in stdout/stderr by default where feasible.
+- [ ] Define artifact retention and deletion.
+- [ ] Prevent one experiment from reading another experiment's private artifacts.
+- [ ] Set restrictive permissions on temporary data where supported.
+- [ ] Avoid retaining package caches containing private artifacts without user consent.
+- [ ] Define safe behavior for private package indexes.
+- [ ] Document that redaction is defense in depth and cannot guarantee detection of every secret.
+
+### 22.5. Security validation
+
+- [ ] Test path traversal inputs.
+- [ ] Test symlink escape scenarios.
+- [ ] Test malformed configuration and report payloads.
+- [ ] Test child-process cleanup.
+- [ ] Test secret redaction.
+- [ ] Test cleanup after forced termination.
+- [ ] Add dependency auditing where practical.
+- [ ] Publish a vulnerability reporting policy.
+- [ ] Document supported security update practices.
+
+**Completion gate:** Security boundaries are documented, unsafe assumptions are avoided, and any stronger isolation claims are backed by tests and platform-specific evidence.
+
+---
+
+## Phase 23: Execution graph, artifacts, and dependency relationships
+
+**Goal:** Represent work as a graph when experiments have prerequisites, generated artifacts, or integration dependencies.
+
+A graph is not required for the first single-component runner. Introduce it when project plans need to express real dependencies between tasks.
+
+### 23.1. Execution graph model
+
+- [ ] Define task nodes and dependency edges.
+- [ ] Define ordering constraints separately from data dependencies.
+- [ ] Detect dependency cycles before execution.
+- [ ] Validate missing dependency references.
+- [ ] Define task states such as pending, ready, running, succeeded, failed, blocked, cancelled, and timed out.
+- [ ] Define how a failed prerequisite affects dependent tasks.
+- [ ] Support independent branches running concurrently.
+- [ ] Preserve deterministic plan serialization.
+- [ ] Provide a human-readable graph view.
+- [ ] Explain why a task was blocked.
+- [ ] Test graph validation and cycle detection.
+
+### 23.2. Artifact model
+
+- [ ] Define artifact identity, type, producer, and provenance.
+- [ ] Record path or storage reference without assuming all artifacts are files.
+- [ ] Record hashes when integrity verification is useful.
+- [ ] Define artifact lifetime and cleanup ownership.
+- [ ] Define how artifacts are passed to downstream experiments.
+- [ ] Validate required artifacts before use.
+- [ ] Prevent ambiguous artifact names from silently resolving to the wrong producer.
+- [ ] Distinguish temporary artifacts from user-requested retained outputs.
+- [ ] Avoid copying huge artifacts unnecessarily.
+- [ ] Define how artifact metadata is represented in reports.
+
+### 23.3. Incremental execution
+
+- [ ] Determine whether a task's inputs changed before reusing its result.
+- [ ] Define cache keys for task inputs, adapter version, runtime, and relevant environment.
+- [ ] Invalidate dependent tasks when an upstream artifact changes.
+- [ ] Never reuse results when required provenance is missing.
+- [ ] Make cache hits visible.
+- [ ] Permit a forced clean run.
+- [ ] Test partial reruns after one component changes.
+- [ ] Keep incremental execution optional until its correctness is established.
+
+### 23.4. Graph execution correctness
+
+- [ ] Test independent tasks executing without ordering assumptions.
+- [ ] Test blocked descendants after prerequisite failure.
+- [ ] Test cancellation propagation.
+- [ ] Test timeout propagation.
+- [ ] Test artifact cleanup on failure.
+- [ ] Test concurrent tasks do not share mutable workspaces accidentally.
+- [ ] Test resuming or re-running a partially completed graph.
+- [ ] Test report integrity after multiple failures.
+
+**Completion gate:** A multi-component plan with real prerequisites can execute predictably, pass artifacts safely, and explain blocked or failed downstream tasks.
+
+---
+
+## Phase 24: Project-level reporting and result interpretation
+
+**Goal:** Make results useful to both humans and automation while preserving exact evidence.
+
+### 24.1. Layered report structure
+
+- [ ] Define a project report containing project metadata, plan metadata, component reports, integration reports, and summary.
+- [ ] Keep raw experiment results available beneath aggregate summaries.
+- [ ] Include requested scope and actual executed scope.
+- [ ] Include skipped, unsupported, blocked, and not-run items.
+- [ ] Include adapter and runtime identities.
+- [ ] Include timestamps and durations with documented semantics.
+- [ ] Include diagnostics by stage.
+- [ ] Include links or references to retained logs and artifacts where applicable.
+- [ ] Define stable identifiers for cross-referencing records.
+- [ ] Keep reports usable when a component fails to start.
+
+### 24.2. Explainability and evidence
+
+- [ ] State exactly what was tested.
+- [ ] State what was not tested.
+- [ ] Distinguish direct observations from inferred conclusions.
+- [ ] Link each aggregate failure to underlying experiments.
+- [ ] Explain the policy rule that determined overall status.
+- [ ] Include the command or operation category without exposing secrets.
+- [ ] Preserve concise diagnostic summaries and detailed raw output separately.
+- [ ] Avoid claiming a package or project is universally compatible.
+- [ ] Distinguish tested compatibility from metadata-based prediction.
+- [ ] Define how stale or cached evidence is labeled.
+
+### 24.3. Report formats and presentation
+
+- [ ] Provide stable JSON for tools.
+- [ ] Provide readable CLI summaries.
+- [ ] Consider JUnit XML for test-oriented CI systems.
+- [ ] Consider SARIF only if diagnostics map meaningfully to its model.
+- [ ] Consider Markdown summaries for pull requests.
+- [ ] Keep presentation formats derived from the canonical report model.
+- [ ] Define output-size and truncation behavior.
+- [ ] Ensure truncation is explicit and does not destroy the canonical retained result.
+- [ ] Test report serialization for partial and interrupted runs.
+
+### 24.4. Report comparison
+
+- [ ] Compare project reports from different revisions.
+- [ ] Identify newly passing and newly failing components.
+- [ ] Identify changes in skipped or unsupported scope.
+- [ ] Identify changes in runtime coverage.
+- [ ] Distinguish a genuine regression from a changed test matrix.
+- [ ] Show changes in duration without over-interpreting noisy measurements.
+- [ ] Preserve the baseline report identity.
+- [ ] Test comparisons when schemas differ across report versions.
+
+**Completion gate:** A developer can understand both the overall project result and the evidence for each component, while automation can consume stable structured data.
+
+---
+
+## Phase 25: Quality engineering and acceptance strategy
+
+**Goal:** Define rigorous quality gates so new adapters and project-level features do not reduce reliability.
+
+### 25.1. Testing layers
+
+- [ ] Unit-test pure validation and schema logic.
+- [ ] Unit-test orchestration and status aggregation.
+- [ ] Use controlled fake adapters for lifecycle edge cases.
+- [ ] Add integration tests with small local fixtures.
+- [ ] Add end-to-end tests through the CLI.
+- [ ] Add cross-platform tests for OS-dependent behavior.
+- [ ] Add contract tests for every adapter.
+- [ ] Add regression tests for every confirmed defect.
+- [ ] Keep network-dependent tests separate from deterministic core tests.
+- [ ] Make test prerequisites and skips explicit.
+- [ ] Ensure tests clean up all temporary processes and directories.
+
+### 25.2. Test integrity rules
+
+- [ ] Never weaken a valid assertion merely to make a failing test pass.
+- [ ] Investigate whether a failure is caused by implementation, test setup, environment, or an invalid expectation.
+- [ ] Use deterministic fixtures where possible.
+- [ ] Avoid arbitrary sleeps when a synchronization mechanism is available.
+- [ ] Where timing is inherently involved, use generous but meaningful bounds and test the actual semantic outcome.
+- [ ] Test both expected result and relevant side effects.
+- [ ] Do not let a child-process test accidentally match the parent test or run recursively.
+- [ ] Verify tests fail when the relevant implementation behavior is deliberately broken where practical.
+- [ ] Do not suppress compiler or Clippy warnings to get a green build.
+- [ ] Keep negative-test stderr understandable and intentional.
+- [ ] Document unavoidable platform-specific test constraints.
+
+### 25.3. Continuous integration
+
+- [ ] Keep formatting checks enabled.
+- [ ] Run workspace checks and builds.
+- [ ] Run the complete test suite.
+- [ ] Run Clippy with warnings denied.
+- [ ] Run adapter-specific checks only where the required tools are installed.
+- [ ] Test supported operating systems and architectures.
+- [ ] Pin third-party CI actions according to project policy.
+- [ ] Review CI deprecation notices.
+- [ ] Cache dependencies without making cache contents a correctness requirement.
+- [ ] Publish test logs and diagnostics for failed jobs.
+- [ ] Keep CI duration bounded and divide slow integration suites from fast checks.
+- [ ] Test release artifacts separately from debug builds.
+
+### 25.4. Acceptance criteria per feature
+
+- [ ] Every roadmap item that changes behavior has an explicit acceptance criterion.
+- [ ] Every bug fix includes a regression test when feasible.
+- [ ] Every schema change updates examples and contract tests.
+- [ ] Every adapter addition passes the adapter conformance suite.
+- [ ] Every new platform claim is supported by CI or documented manual verification.
+- [ ] Every security claim identifies its tested boundary.
+- [ ] Every completion checkbox is supported by repository evidence.
+- [ ] Maintain a distinction between implemented, tested, documented, and released.
+
+**Completion gate:** Quality checks are repeatable, failures are actionable, and new features cannot be declared done solely because the code compiles.
+
+---
+
+## Phase 26: Performance, scale, and resource governance
+
+**Goal:** Keep CompatLab responsive and bounded as project size, language count, and experiment matrices grow.
+
+### 26.1. Measure before optimizing
+
+- [ ] Measure discovery time on small, medium, and large repositories.
+- [ ] Measure plan-generation cost.
+- [ ] Measure per-experiment setup and execution time.
+- [ ] Measure memory and temporary-storage use.
+- [ ] Measure concurrency overhead.
+- [ ] Define practical performance budgets for common workflows.
+- [ ] Avoid premature micro-optimization.
+- [ ] Keep benchmark fixtures representative and reproducible.
+
+### 26.2. Bounded execution
+
+- [ ] Define maximum active experiments.
+- [ ] Define per-adapter concurrency limits where necessary.
+- [ ] Define per-project time and resource budgets.
+- [ ] Define output buffering limits.
+- [ ] Define temporary storage cleanup and quotas where feasible.
+- [ ] Avoid launching an unbounded number of runtimes or builds.
+- [ ] Apply backpressure to report and log collection.
+- [ ] Define behavior when a resource budget is exhausted.
+- [ ] Report resource-limit termination distinctly from compatibility failure.
+
+### 26.3. Large matrices and scheduling
+
+- [ ] Estimate the number of planned combinations before execution.
+- [ ] Warn when a matrix expands unexpectedly.
+- [ ] Allow users to cap total experiments.
+- [ ] Support prioritizing required combinations.
+- [ ] Support stopping after a policy-defined condition when explicitly requested.
+- [ ] Preserve unexecuted combinations in the report.
+- [ ] Avoid hiding untested combinations in a summary.
+- [ ] Define fair scheduling between components when useful.
+- [ ] Ensure retries do not multiply work without bounds.
+
+### 26.4. Performance acceptance
+
+- [ ] Benchmark discovery and planning separately from execution.
+- [ ] Test cancellation responsiveness.
+- [ ] Test output collection under heavy output.
+- [ ] Test many small experiments.
+- [ ] Test a small number of long-running experiments.
+- [ ] Verify that resource limits remain enforced under concurrency.
+- [ ] Document hardware and environment used for benchmarks.
+
+**Completion gate:** Large projects and matrices remain observable and bounded, and performance optimizations preserve correctness.
+
+---
+
+## Phase 27: Developer experience and ecosystem adoption
+
+**Goal:** Make CompatLab understandable, scriptable, contributor-friendly, and practical in real workflows.
+
+### 27.1. First-run experience
+
+- [ ] Provide a quick start that works on a clean supported machine.
+- [ ] Provide a command to inspect available adapters and runtimes.
+- [ ] Provide a discovery-only command.
+- [ ] Provide a plan preview before execution.
+- [ ] Explain missing runtimes and installation requirements.
+- [ ] Provide actionable errors without requiring debug logs.
+- [ ] Keep verbose diagnostics available for deeper investigation.
+- [ ] Avoid network access or package installation during simple help/version commands.
+
+### 27.2. CI and editor integration
+
+- [ ] Document CI usage with JSON output and exit codes.
+- [ ] Provide examples for GitHub Actions and other CI systems.
+- [ ] Support baseline comparisons in CI.
+- [ ] Define pull-request summary output.
+- [ ] Provide machine-readable output suitable for editor tooling.
+- [ ] Consider editor integrations only after CLI and schema stability.
+- [ ] Avoid making editor integrations mandatory for core functionality.
+- [ ] Document local-versus-CI configuration differences.
+
+### 27.3. Contributor workflow
+
+- [ ] Document the repository architecture.
+- [ ] Document how to run all checks locally.
+- [ ] Document how to add a core feature.
+- [ ] Document how to add or modify an adapter.
+- [ ] Provide small fixture projects for each adapter.
+- [ ] Add issue and pull-request templates.
+- [ ] Define review expectations for tests, errors, and cross-platform behavior.
+- [ ] Document how roadmap checkboxes are verified.
+- [ ] Keep architecture decision records for major decisions.
+- [ ] Record rejected alternatives and why they were rejected when useful.
+
+### 27.4. User support and feedback
+
+- [ ] Document how to report a bug with a redacted report.
+- [ ] Provide a diagnostic bundle that excludes secrets by default.
+- [ ] Define support expectations for stable and experimental adapters.
+- [ ] Distinguish bugs in CompatLab from incompatibilities in tested projects.
+- [ ] Provide troubleshooting for toolchain discovery and permission failures.
+- [ ] Maintain a known-limitations page.
+- [ ] Collect feature requests without promising every adapter or runtime.
+
+**Completion gate:** A new user can discover, plan, execute, and interpret a project test; a new contributor can understand the architecture and add a tested feature.
+
+---
+
+## Phase 28: Long-term integrations and research candidates
+
+**Goal:** Preserve ambitious options without turning every possibility into a near-term dependency.
+
+These are research candidates. Investigate each one with a concrete use case, a small prototype, an explicit decision, and documented trade-offs before committing to implementation.
+
+### 28.1. Additional language and runtime adapters
+
+- [ ] Evaluate additional Python implementations where relevant.
+- [ ] Evaluate alternative JavaScript runtimes after Node.js support is proven.
+- [ ] Evaluate TypeScript-specific compilation and type-checking workflows.
+- [ ] Evaluate Java and JVM ecosystems.
+- [ ] Evaluate .NET and C# projects.
+- [ ] Evaluate Go modules and toolchains.
+- [ ] Evaluate C and C++ compiler/toolchain compatibility.
+- [ ] Evaluate PHP, Ruby, Swift, Kotlin, Lua, and other ecosystems based on actual demand.
+- [ ] Evaluate additional game engines and scripting environments.
+- [ ] Evaluate shader languages and other specialized toolchains only if a clear testing model exists.
+- [ ] Define a consistent process for accepting, maintaining, and deprecating adapters.
+- [ ] Avoid promising support for a language before its toolchain and test semantics are defined.
+
+### 28.2. Remote and distributed execution
+
+- [ ] Identify use cases that cannot be served by local execution.
+- [ ] Define worker identity and capability reporting.
+- [ ] Define authenticated job submission and result retrieval.
+- [ ] Define artifact transfer and integrity checks.
+- [ ] Define cancellation and timeout behavior across network boundaries.
+- [ ] Define worker trust and isolation guarantees.
+- [ ] Define scheduling across OS and architecture pools.
+- [ ] Define offline and unavailable-worker behavior.
+- [ ] Avoid distributed execution until local plans and reports are stable.
+
+### 28.3. Containers and disposable environments
+
+- [ ] Compare containers, virtual machines, and native process isolation.
+- [ ] Define the threat model for each isolation mode.
+- [ ] Define image or environment provenance.
+- [ ] Define caching without compromising isolation.
+- [ ] Define resource and network restrictions.
+- [ ] Test cleanup after worker crashes.
+- [ ] Document platform-specific differences.
+- [ ] Never treat a container as a complete security boundary without qualification.
+
+### 28.4. Long-term report services and user interfaces
+
+- [ ] Evaluate a local report viewer.
+- [ ] Evaluate historical result storage.
+- [ ] Evaluate dashboards for matrix trends.
+- [ ] Evaluate authenticated multi-user services only if collaboration requires them.
+- [ ] Define retention, deletion, access control, and privacy requirements before storing reports remotely.
+- [ ] Keep the core CLI and report format usable without a hosted service.
+- [ ] Avoid adding a server/database dependency to users who only need local tests.
+
+### 28.5. Intelligence and automated recommendations
+
+- [ ] Evaluate suggesting runtime versions based on project metadata.
+- [ ] Evaluate identifying likely compatibility boundaries from observed results.
+- [ ] Evaluate prioritizing experiments based on changed dependencies.
+- [ ] Explain the evidence behind every recommendation.
+- [ ] Distinguish suggestions from verified experiment results.
+- [ ] Never invent passing versions for untested combinations.
+- [ ] Keep heuristic recommendations overridable and optional.
+- [ ] Require measured benefit before adding complex automated selection.
+
+**Completion gate:** A research candidate is promoted into committed roadmap work only after its use case, scope, risks, acceptance criteria, and maintenance cost are understood.
+
+---
+
+## Global definition of done
+
+Every substantial feature should satisfy the applicable checks below before it is marked complete.
+
+- [ ] The behavior and scope are documented.
+- [ ] Inputs are validated and invalid input produces actionable errors.
+- [ ] Success, failure, timeout, cancellation, and unsupported cases are defined where relevant.
+- [ ] Diagnostics preserve the root cause without leaking secrets.
+- [ ] Resource and cleanup behavior are tested.
+- [ ] Relevant Windows, Linux, and macOS behavior is tested or the limitation is documented.
+- [ ] Automated tests cover normal and important negative cases.
+- [ ] Regression tests exist for confirmed bugs where feasible.
+- [ ] Formatting, workspace checks, tests, and Clippy pass without warnings.
+- [ ] CLI and JSON contracts are updated when externally visible behavior changes.
+- [ ] Documentation examples are tested or checked against the implementation.
+- [ ] The focused diff contains only the intended logical change.
+- [ ] The implementation does not claim more compatibility or isolation than the evidence supports.
+- [ ] The feature is usable by a consumer without relying on undocumented internal details.
+- [ ] The roadmap checkbox is marked only after the acceptance criteria are verified.
+
+## Non-goals and guardrails
+
+These are not permanent bans. They are guardrails against building complexity without evidence.
+
+- Do not implement every language adapter before the adapter contract has been proven.
+- Do not require multilingual configuration for single-language projects.
+- Do not treat file-extension detection as proof that a component is runnable.
+- Do not conflate project discovery, plan generation, and execution.
+- Do not conflate independent component checks with cross-language integration tests.
+- Do not make dynamic plugin loading a prerequisite for the first adapter architecture.
+- Do not build remote execution, a hosted dashboard, or a database before local workflows justify them.
+- Do not claim that package metadata alone proves runtime compatibility.
+- Do not claim that successful compilation proves integration compatibility.
+- Do not silently skip unsupported checks or hide untested matrix combinations.
+- Do not weaken correct tests to conceal implementation defects.
+- Do not use one giant commit for unrelated architectural changes.
+- Do not make external network calls during discovery unless the user explicitly requested them and the behavior is documented.
+- Do not execute project code merely to discover what files exist.
+- Do not silently change a user's project files during experiments.
+- Do not retain sensitive logs, credentials, or artifacts without a clear policy.
+
+## Updated execution strategy
+
+1. **Finish Phase 1:** timeout status mapping, report lifecycle, input validation, process cleanup, and failure-path tests.
+2. **Specify Phase 2:** freeze the initial language-neutral experiment and report contract before consumers depend on it.
+3. **Build Phase 3:** make the CLI useful for validation, discovery, execution, and report inspection as those commands become available.
+4. **Strengthen Phases 4-6:** make Python experiments correct, isolated, bounded, and continuously tested across supported platforms.
+5. **Integrate CompatPy in Phase 7:** prove the consumer boundary using the documented contract.
+6. **Build batch and matrix support in Phase 8:** establish reliable multi-experiment behavior before project-wide orchestration.
+7. **Design Phase 9 from evidence:** extract the adapter interface while keeping the existing workspace and Python behavior working.
+8. **Ship the initial documented CLI and stable contract in Phase 10:** release only after the promised behavior and support matrix are tested.
+9. **Build the project model and discovery in Phases 16-17:** distinguish repositories, projects, components, and experiments.
+10. **Implement multilingual orchestration in Phase 18:** coordinate independently testable components and aggregate results honestly.
+11. **Add the first real integration experiment in Phase 19:** prove that component-level success and system-level success are different.
+12. **Harden adapter, configuration, security, graph, and report contracts in Phases 20-25:** promote only the abstractions required by real workflows.
+13. **Add language adapters incrementally in Phases 11-13:** use the same conformance suite and platform standards for each.
+14. **Address performance and adoption in Phases 26-27:** use measured project needs rather than speculation.
+15. **Evaluate Phase 28 candidates individually:** no future language, service, or automation is considered implemented until its own acceptance criteria pass.
+
+The phases are a roadmap, not a requirement to finish every future feature before useful releases. Work can proceed in small increments, but no phase should be declared complete while its acceptance criteria remain unmet.
+
+---
+
+_This roadmap is intentionally ambitious and comprehensive. It is a planning contract for scope and quality, not a claim that all features already exist. Revisit priorities when implementation evidence or real user needs justify a change._
