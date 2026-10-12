@@ -5,6 +5,10 @@ use crate::report::{ExperimentReport, ExperimentStage, ExperimentStatus};
 use std::process::{Command, Output};
 use std::time::Instant;
 
+fn elapsed_millis(started: Instant) -> u64 {
+    started.elapsed().as_millis().max(1) as u64
+}
+
 fn apply_timeout_error(
     report: &mut ExperimentReport,
     error: &str,
@@ -45,7 +49,7 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
         Ok(interpreter) => interpreter,
         Err(error) => {
             report.message = Some(error);
-            report.duration_ms = started.elapsed().as_millis() as u64;
+            report.duration_ms = elapsed_millis(started);
             return report;
         }
     };
@@ -58,7 +62,7 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
             report.message = Some(error.message);
             report.stdout = error.stdout;
             report.stderr = error.stderr;
-            report.duration_ms = started.elapsed().as_millis() as u64;
+            report.duration_ms = elapsed_millis(started);
             return report;
         }
     };
@@ -80,7 +84,7 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
                 "Package installation timed out",
                 "package installation",
             );
-            report.duration_ms = started.elapsed().as_millis() as u64;
+            report.duration_ms = elapsed_millis(started);
             return report;
         }
     };
@@ -94,7 +98,7 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
             "Package installation failed with status {}",
             install.status
         ));
-        report.duration_ms = started.elapsed().as_millis() as u64;
+        report.duration_ms = elapsed_millis(started);
         return report;
     }
 
@@ -117,7 +121,7 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
                 "Import check timed out",
                 "import check",
             );
-            report.duration_ms = started.elapsed().as_millis() as u64;
+            report.duration_ms = elapsed_millis(started);
             return report;
         }
     };
@@ -141,7 +145,7 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
     } else {
         format!("Module import failed with status {}", import.status)
     });
-    report.duration_ms = started.elapsed().as_millis() as u64;
+    report.duration_ms = elapsed_millis(started);
 
     report
 }
@@ -288,6 +292,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         assert_eq!(report.stage, ExperimentStage::EnvironmentSetup);
         assert!(report.python_version.is_none());
         assert!(report.message.is_some());
+        assert!(report.duration_ms > 0);
         assert!(report.duration_ms < 10_000);
     }
 
@@ -341,6 +346,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
         assert_eq!(report.stage, ExperimentStage::Completed);
         assert!(report.python_version.is_some());
+        assert!(report.duration_ms > 0);
     }
 
     #[test]
@@ -360,9 +366,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
                 package: package_dir.to_string_lossy().into_owned(),
                 import_name: "slow_install_package".to_owned(),
             },
-            &ExperimentConfig {
-                timeout_seconds: 3,
-            },
+            &ExperimentConfig { timeout_seconds: 3 },
         );
 
         assert_eq!(report.status, ExperimentStatus::TimedOut);
@@ -371,6 +375,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
             report.message.as_deref(),
             Some("Package installation timed out")
         );
+        assert!(report.duration_ms > 0);
     }
 
     #[test]
@@ -390,14 +395,13 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
                 package: package_dir.to_string_lossy().into_owned(),
                 import_name: "slow_import_package".to_owned(),
             },
-            &ExperimentConfig {
-                timeout_seconds: 3,
-            },
+            &ExperimentConfig { timeout_seconds: 3 },
         );
 
         assert_eq!(report.status, ExperimentStatus::TimedOut);
         assert_eq!(report.stage, ExperimentStage::ImportCheck);
         assert_eq!(report.message.as_deref(), Some("Import check timed out"));
+        assert!(report.duration_ms > 0);
     }
 
     #[test]
@@ -552,8 +556,16 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         );
 
         assert_eq!(report.status, ExperimentStatus::Error);
-        assert_ne!(report.message.as_deref(), Some("Package installation timed out"));
-        assert!(report.message.unwrap().contains("Failed to run package installation"));
+        assert_ne!(
+            report.message.as_deref(),
+            Some("Package installation timed out")
+        );
+        assert!(
+            report
+                .message
+                .unwrap()
+                .contains("Failed to run package installation")
+        );
     }
 
     #[test]
