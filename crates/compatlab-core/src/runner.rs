@@ -213,6 +213,71 @@ mod tests {
         package_dir
     }
 
+    fn create_pep517_package(
+        directory: &std::path::Path,
+        package_name: &str,
+        import_name: &str,
+        module_source: &str,
+        build_delay_seconds: u64,
+    ) -> std::path::PathBuf {
+        let package_dir = directory.join(package_name);
+        std::fs::create_dir_all(&package_dir).unwrap();
+        std::fs::write(
+            package_dir.join("pyproject.toml"),
+            "[build-system]\nrequires = []\nbuild-backend = 'backend'\nbackend-path = ['.']\n",
+        )
+        .unwrap();
+        std::fs::write(
+            package_dir.join("compatlab_package.json"),
+            serde_json::json!({
+                "package_name": package_name,
+                "import_name": import_name,
+                "module_source": module_source,
+                "build_delay_seconds": build_delay_seconds,
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            package_dir.join("backend.py"),
+            r#"
+import json
+import pathlib
+import time
+import zipfile
+
+CONFIG = json.loads(pathlib.Path("compatlab_package.json").read_text())
+DIST = CONFIG["package_name"].replace("-", "_")
+VERSION = "0.1.0"
+DIST_INFO = f"{DIST}-{VERSION}.dist-info"
+METADATA = f"Metadata-Version: 2.1\nName: {CONFIG['package_name']}\nVersion: {VERSION}\n\n"
+WHEEL = "Wheel-Version: 1.0\nGenerator: compatlab-test\nRoot-Is-Purelib: true\nTag: py3-none-any\n\n"
+
+def get_requires_for_build_wheel(config_settings=None):
+    return []
+
+def prepare_metadata_for_build_wheel(metadata_directory, config_settings=None):
+    metadata = pathlib.Path(metadata_directory) / DIST_INFO
+    metadata.mkdir()
+    (metadata / "METADATA").write_text(METADATA)
+    (metadata / "WHEEL").write_text(WHEEL)
+    return DIST_INFO
+
+def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
+    time.sleep(CONFIG["build_delay_seconds"])
+    filename = f"{DIST}-{VERSION}-py3-none-any.whl"
+    with zipfile.ZipFile(pathlib.Path(wheel_directory) / filename, "w") as wheel:
+        wheel.writestr(f"{CONFIG['import_name']}.py", CONFIG["module_source"])
+        wheel.writestr(f"{DIST_INFO}/METADATA", METADATA)
+        wheel.writestr(f"{DIST_INFO}/WHEEL", WHEEL)
+        wheel.writestr(f"{DIST_INFO}/RECORD", "")
+    return filename
+"#,
+        )
+        .unwrap();
+        package_dir
+    }
+
     #[test]
     fn invalid_interpreter_returns_error_report() {
         let experiment = test_experiment("compatlab-python-executable-that-does-not-exist");
@@ -281,18 +346,13 @@ mod tests {
     #[test]
     fn installation_timeout_returns_timed_out_report() {
         let directory = tempfile::tempdir().unwrap();
-        let package_dir = directory.path().join("slow_install_package");
-        std::fs::create_dir_all(&package_dir).unwrap();
-        std::fs::write(
-            package_dir.join("setup.py"),
-            "import time\ntime.sleep(30)\nfrom setuptools import setup\nsetup(name='slow-install-package', version='0.1.0', py_modules=['slow_install_package'])\n",
-        )
-        .unwrap();
-        std::fs::write(
-            package_dir.join("slow_install_package.py"),
+        let package_dir = create_pep517_package(
+            directory.path(),
+            "slow-install-package",
+            "slow_install_package",
             "VALUE = 42\n",
-        )
-        .unwrap();
+            30,
+        );
 
         let report = run_experiment(
             &Experiment {
@@ -311,6 +371,33 @@ mod tests {
             report.message.as_deref(),
             Some("Package installation timed out")
         );
+    }
+
+    #[test]
+    fn import_timeout_returns_timed_out_report() {
+        let directory = tempfile::tempdir().unwrap();
+        let package_dir = create_pep517_package(
+            directory.path(),
+            "slow-import-package",
+            "slow_import_package",
+            "import time\ntime.sleep(30)\n",
+            0,
+        );
+
+        let report = run_experiment(
+            &Experiment {
+                python_executable: "python".to_owned(),
+                package: package_dir.to_string_lossy().into_owned(),
+                import_name: "slow_import_package".to_owned(),
+            },
+            &ExperimentConfig {
+                timeout_seconds: 3,
+            },
+        );
+
+        assert_eq!(report.status, ExperimentStatus::TimedOut);
+        assert_eq!(report.stage, ExperimentStage::ImportCheck);
+        assert_eq!(report.message.as_deref(), Some("Import check timed out"));
     }
 
     #[test]
