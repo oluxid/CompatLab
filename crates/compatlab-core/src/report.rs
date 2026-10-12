@@ -100,6 +100,27 @@ mod tests {
     }
 
     #[test]
+    fn every_experiment_stage_serializes_to_snake_case() {
+        let cases = [
+            (ExperimentStage::EnvironmentSetup, "environment_setup"),
+            (ExperimentStage::Installation, "installation"),
+            (ExperimentStage::ImportCheck, "import_check"),
+            (ExperimentStage::Completed, "completed"),
+        ];
+
+        for (stage, expected) in cases {
+            assert_eq!(
+                serde_json::to_string(&stage).unwrap(),
+                format!("\"{expected}\"")
+            );
+            assert_eq!(
+                serde_json::from_str::<ExperimentStage>(&format!("\"{expected}\"")).unwrap(),
+                stage
+            );
+        }
+    }
+
+    #[test]
     fn report_round_trips_through_json() {
         let report = report_fixture(ExperimentStatus::Passed, ExperimentStage::Completed);
 
