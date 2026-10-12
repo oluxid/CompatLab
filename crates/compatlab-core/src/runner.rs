@@ -7,7 +7,7 @@ use std::time::Instant;
 
 #[derive(Debug)]
 enum ProcessError {
-    TimedOut(Option<Output>),
+    TimedOut(Option<Output>, Option<String>),
     Failed(String),
 }
 
@@ -22,12 +22,17 @@ fn apply_timeout_error(
     operation: &str,
 ) {
     match error {
-        ProcessError::TimedOut(output) => {
+        ProcessError::TimedOut(output, cleanup_error) => {
             report.status = ExperimentStatus::TimedOut;
             report.message = Some(timeout_message.to_owned());
             if let Some(output) = output {
                 report.stdout = String::from_utf8_lossy(&output.stdout).into_owned();
                 report.stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+            }
+            if let Some(error) = cleanup_error {
+                report
+                    .stderr
+                    .push_str(&format!("\nProcess cleanup failed: {error}"));
             }
         }
         ProcessError::Failed(error) => {
@@ -165,10 +170,16 @@ fn run_with_timeout(command: &mut Command, timeout_seconds: u64) -> Result<Outpu
     use std::time::Duration;
 
     if timeout_seconds == 0 {
-        return Err(ProcessError::TimedOut(None));
+        return Err(ProcessError::TimedOut(None, None));
     }
 
     let deadline = Instant::now() + Duration::from_secs(timeout_seconds);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+
     let mut child = command
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -186,19 +197,60 @@ fn run_with_timeout(command: &mut Command, timeout_seconds: u64) -> Result<Outpu
                 thread::sleep(Duration::from_millis(50));
             }
             Ok(None) => {
-                let _ = child.kill();
+                let cleanup_error = terminate_process_tree(&mut child)
+                    .err()
+                    .map(|error| error.to_string());
+                if cleanup_error.is_some() {
+                    let _ = child.kill();
+                }
                 return match child.wait_with_output() {
-                    Ok(output) => Err(ProcessError::TimedOut(Some(output))),
-                    Err(error) => Err(ProcessError::Failed(error.to_string())),
+                    Ok(output) => Err(ProcessError::TimedOut(Some(output), cleanup_error)),
+                    Err(error) => Err(ProcessError::TimedOut(
+                        None,
+                        Some(format!("Failed to collect process output: {error}")),
+                    )),
                 };
             }
             Err(error) => {
-                let _ = child.kill();
+                let cleanup_error = terminate_process_tree(&mut child)
+                    .err()
+                    .map(|cleanup| format!("; failed to terminate process tree: {cleanup}"))
+                    .unwrap_or_default();
                 let _ = child.wait();
-                return Err(ProcessError::Failed(error.to_string()));
+                return Err(ProcessError::Failed(format!("{error}{cleanup_error}")));
             }
         }
     }
+}
+
+fn terminate_process_tree(child: &mut std::process::Child) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        let process_group = -(child.id() as i32);
+        let result = unsafe { libc::kill(process_group, libc::SIGKILL) };
+        if result != 0 {
+            let error = std::io::Error::last_os_error();
+            if error.kind() != std::io::ErrorKind::NotFound {
+                return Err(error);
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        let status = Command::new("taskkill")
+            .args(["/PID", &child.id().to_string(), "/T", "/F"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()?;
+        if !status.success() {
+            return Err(std::io::Error::other(format!(
+                "taskkill exited with status {status}"
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -482,7 +534,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         let result = run_with_timeout(&mut command, 1);
         let elapsed = started.elapsed();
 
-        assert!(matches!(result.unwrap_err(), ProcessError::TimedOut(_)));
+        assert!(matches!(result.unwrap_err(), ProcessError::TimedOut(_, _)));
 
         assert!(elapsed.as_secs() < 5, "Timeout took too long: {elapsed:?}");
     }
@@ -490,6 +542,25 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     #[test]
     fn timeout_test_child_process() {
         if std::env::var("COMPATLAB_TIMEOUT_CHILD").is_ok() {
+            let executable = std::env::current_exe().unwrap();
+            Command::new(executable)
+                .args([
+                    "--exact",
+                    "runner::tests::timeout_test_descendant_process",
+                    "--nocapture",
+                ])
+                .env("COMPATLAB_TIMEOUT_DESCENDANT", "1")
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit())
+                .spawn()
+                .unwrap();
+            std::thread::sleep(std::time::Duration::from_secs(30));
+        }
+    }
+
+    #[test]
+    fn timeout_test_descendant_process() {
+        if std::env::var("COMPATLAB_TIMEOUT_DESCENDANT").is_ok() {
             std::thread::sleep(std::time::Duration::from_secs(30));
         }
     }
@@ -511,7 +582,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         let result = run_with_timeout(&mut command, 1);
         let elapsed = started.elapsed();
 
-        assert!(matches!(result.unwrap_err(), ProcessError::TimedOut(_)));
+        assert!(matches!(result.unwrap_err(), ProcessError::TimedOut(_, _)));
 
         assert!(
             elapsed.as_secs() < 5,
@@ -528,7 +599,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
         apply_timeout_error(
             &mut report,
-            &ProcessError::TimedOut(None),
+            &ProcessError::TimedOut(None, None),
             "Package installation timed out",
             "package installation",
         );
@@ -565,7 +636,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         );
 
         assert_eq!(report.status, ExperimentStatus::Error);
-        assert!(!matches!(error, ProcessError::TimedOut(_)));
+        assert!(!matches!(error, ProcessError::TimedOut(_, _)));
         assert!(
             report
                 .message
@@ -580,7 +651,10 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
         let result = run_with_timeout(&mut command, 0);
 
-        assert!(matches!(result.unwrap_err(), ProcessError::TimedOut(None)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ProcessError::TimedOut(None, None)
+        ));
     }
 
     #[test]
@@ -607,7 +681,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         ]);
 
         let error = run_with_timeout(&mut command, 1).unwrap_err();
-        let ProcessError::TimedOut(Some(output)) = error else {
+        let ProcessError::TimedOut(Some(output), None) = error else {
             panic!("Expected a timeout with collected process output");
         };
 
