@@ -5,6 +5,25 @@ use crate::experiment::{Experiment, ExperimentConfig};
 use crate::interpreter::inspect_interpreter;
 use crate::report::{ExperimentReport, ExperimentStage, ExperimentStatus};
 
+fn apply_timeout_error(
+    report: &mut ExperimentReport,
+    error: &str,
+    timeout_message: &str,
+    operation: &str,
+) {
+    report.status = if error == "timeout" {
+        ExperimentStatus::TimedOut
+    } else {
+        ExperimentStatus::Error
+    };
+
+    report.message = Some(if error == "timeout" {
+        timeout_message.to_owned()
+    } else {
+        format!("Failed to run {operation}: {error}")
+    });
+}
+
 /// Run a compatibility experiment in an isolated Python virtual environment.
 pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> ExperimentReport {
     let started = Instant::now();
@@ -81,16 +100,12 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
     let install = match run_with_timeout(&mut pip, config.timeout_seconds) {
         Ok(output) => output,
         Err(error) => {
-            report.status = if error == "timeout" {
-                ExperimentStatus::TimedOut
-            } else {
-                ExperimentStatus::Error
-            };
-            report.message = Some(if error == "timeout" {
-                "Package installation timed out".into()
-            } else {
-                format!("Failed to run package installation: {error}")
-            });
+            apply_timeout_error(
+                &mut report,
+                &error,
+                "Package installation timed out",
+                "package installation",
+            );
             report.duration_ms = started.elapsed().as_millis() as u64;
             return report;
         }
@@ -122,16 +137,12 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
     let import = match run_with_timeout(&mut import, config.timeout_seconds) {
         Ok(output) => output,
         Err(error) => {
-            report.status = if error == "timeout" {
-                ExperimentStatus::TimedOut
-            } else {
-                ExperimentStatus::Error
-            };
-            report.message = Some(if error == "timeout" {
-                "Import check timed out".into()
-            } else {
-                format!("Failed to run import check: {error}")
-            });
+            apply_timeout_error(
+                &mut report,
+                &error,
+                "Import check timed out",
+                "import check",
+            );
             report.duration_ms = started.elapsed().as_millis() as u64;
             return report;
         }
