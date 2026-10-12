@@ -14,13 +14,23 @@ permissions:
 
 jobs:
   build:
-    name: Build and test
-    runs-on: ubuntu-latest
+    name: Quality checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - ubuntu-26.04
+          - windows-latest
+          - macos-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v6
 
-      - name: Install stable Rust with Clippy
+      - name: Install stable Rust with Clippy and rustfmt
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -37,5 +47,5 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --verbose
 
-      - name: Run Clippy
+      - name: Run Clippy with warnings denied
         run: cargo clippy --workspace --all-targets -- -D warnings
