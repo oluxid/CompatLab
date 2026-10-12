@@ -1,9 +1,9 @@
-use std::process::{Command, Output};
-use std::time::Instant;
-
+use crate::environment::create_python_environment;
 use crate::experiment::{Experiment, ExperimentConfig};
 use crate::interpreter::inspect_interpreter;
 use crate::report::{ExperimentReport, ExperimentStage, ExperimentStatus};
+use std::process::{Command, Output};
+use std::time::Instant;
 
 fn apply_timeout_error(
     report: &mut ExperimentReport,
@@ -52,48 +52,22 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
 
     report.python_version = Some(interpreter.version);
 
-    let temp_dir = match tempfile::tempdir() {
-        Ok(directory) => directory,
+    let environment = match create_python_environment(&experiment.python_executable) {
+        Ok(environment) => environment,
         Err(error) => {
-            report.message = Some(format!("Failed to create temporary directory: {error}"));
+            report.message = Some(error.message);
+            report.stdout = error.stdout;
+            report.stderr = error.stderr;
             report.duration_ms = started.elapsed().as_millis() as u64;
             return report;
         }
     };
 
-    let venv_path = temp_dir.path().join("venv");
-
-    let setup = Command::new(&experiment.python_executable)
-        .args(["-m", "venv"])
-        .arg(&venv_path)
-        .output();
-
-    let setup = match setup {
-        Ok(output) => output,
-        Err(error) => {
-            report.message = Some(format!("Failed to create virtual environment: {error}"));
-            report.duration_ms = started.elapsed().as_millis() as u64;
-            return report;
-        }
-    };
-
-    if !setup.status.success() {
-        report.stderr = String::from_utf8_lossy(&setup.stderr).into_owned();
-        report.stdout = String::from_utf8_lossy(&setup.stdout).into_owned();
-        report.message = Some("Virtual environment creation failed".into());
-        report.duration_ms = started.elapsed().as_millis() as u64;
-        return report;
-    }
-
-    #[cfg(windows)]
-    let python = venv_path.join("Scripts").join("python.exe");
-
-    #[cfg(not(windows))]
-    let python = venv_path.join("bin").join("python");
+    let python = &environment.python_executable;
 
     report.stage = ExperimentStage::Installation;
 
-    let mut pip = Command::new(&python);
+    let mut pip = Command::new(python);
     pip.args(["-m", "pip", "install", "--disable-pip-version-check"])
         .arg(&experiment.package);
 
@@ -126,7 +100,7 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
 
     report.stage = ExperimentStage::ImportCheck;
 
-    let mut import = Command::new(&python);
+    let mut import = Command::new(python);
     import
         .args([
             "-c",
