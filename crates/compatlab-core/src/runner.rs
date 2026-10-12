@@ -1,4 +1,4 @@
-use crate::environment::create_python_environment;
+use crate::environment::{EnvironmentSetupError, PythonEnvironment, create_python_environment};
 use crate::experiment::{Experiment, ExperimentConfig};
 use crate::interpreter::inspect_interpreter;
 use crate::report::{ExperimentReport, ExperimentStage, ExperimentStatus};
@@ -44,6 +44,14 @@ fn apply_timeout_error(
 
 /// Run a compatibility experiment in an isolated Python virtual environment.
 pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> ExperimentReport {
+    run_experiment_with_environment(experiment, config, create_python_environment)
+}
+
+fn run_experiment_with_environment(
+    experiment: &Experiment,
+    config: &ExperimentConfig,
+    create_environment: impl FnOnce(&str) -> Result<PythonEnvironment, EnvironmentSetupError>,
+) -> ExperimentReport {
     let started = Instant::now();
 
     let mut report = ExperimentReport {
@@ -70,7 +78,7 @@ pub fn run_experiment(experiment: &Experiment, config: &ExperimentConfig) -> Exp
 
     report.python_version = Some(interpreter.version);
 
-    let environment = match create_python_environment(&experiment.python_executable) {
+    let environment = match create_environment(&experiment.python_executable) {
         Ok(environment) => environment,
         Err(error) => {
             report.message = Some(error.message);
@@ -363,6 +371,8 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         assert!(report.message.is_some());
         assert!(report.duration_ms > 0);
         assert!(report.duration_ms < 10_000);
+        assert!(report.stdout.is_empty());
+        assert!(report.stderr.is_empty());
     }
 
     #[test]
@@ -384,6 +394,58 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
         assert!(report.stdout.is_empty());
         assert!(report.stderr.is_empty());
+    }
+
+    #[test]
+    fn environment_creation_failure_returns_error_report() {
+        let report =
+            run_experiment_with_environment(&test_experiment("python"), &test_config(), |_| {
+                Err(EnvironmentSetupError {
+                    message: "Virtual environment creation failed".to_owned(),
+                    stdout: "setup output".to_owned(),
+                    stderr: "setup error".to_owned(),
+                })
+            });
+
+        assert_eq!(report.status, ExperimentStatus::Error);
+        assert_eq!(report.stage, ExperimentStage::EnvironmentSetup);
+        assert!(report.python_version.is_some());
+        assert_eq!(
+            report.message.as_deref(),
+            Some("Virtual environment creation failed")
+        );
+        assert_eq!(report.stdout, "setup output");
+        assert_eq!(report.stderr, "setup error");
+        assert!(report.duration_ms > 0);
+    }
+
+    #[test]
+    fn package_installation_failure_returns_failed_report() {
+        let directory = tempfile::tempdir().unwrap();
+        let experiment = Experiment {
+            python_executable: "python".to_owned(),
+            package: directory
+                .path()
+                .join("package-that-does-not-exist")
+                .to_string_lossy()
+                .into_owned(),
+            import_name: "example_package".to_owned(),
+        };
+
+        let report = run_experiment(&experiment, &test_config());
+
+        assert_eq!(report.status, ExperimentStatus::Failed);
+        assert_eq!(report.stage, ExperimentStage::Installation);
+        assert!(report.python_version.is_some());
+        assert!(
+            report
+                .message
+                .as_deref()
+                .unwrap()
+                .contains("Package installation failed")
+        );
+        assert!(!report.stderr.is_empty());
+        assert!(report.duration_ms > 0);
     }
 
     #[test]
@@ -454,7 +516,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
             directory.path(),
             "slow-import-package",
             "slow_import_package",
-            "import time\ntime.sleep(30)\n",
+            "import time\ntime.sleep(60)\n",
             0,
         );
 
@@ -464,13 +526,46 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
                 package: package_dir.to_string_lossy().into_owned(),
                 import_name: "slow_import_package".to_owned(),
             },
-            &ExperimentConfig { timeout_seconds: 3 },
+            &ExperimentConfig {
+                timeout_seconds: 30,
+            },
         );
 
         assert_eq!(report.status, ExperimentStatus::TimedOut);
         assert_eq!(report.stage, ExperimentStage::ImportCheck);
         assert_eq!(report.message.as_deref(), Some("Import check timed out"));
         assert!(report.duration_ms > 0);
+    }
+
+    #[test]
+    fn experiment_report_preserves_stdout_and_stderr() {
+        let directory = tempfile::tempdir().unwrap();
+        let package_dir = create_pep517_package(
+            directory.path(),
+            "output-capture-package",
+            "output_capture_package",
+            "import sys\nprint('import stdout')\nprint('import stderr', file=sys.stderr)\n",
+            0,
+        );
+        let report = run_experiment(
+            &Experiment {
+                python_executable: "python".to_owned(),
+                package: package_dir.to_string_lossy().into_owned(),
+                import_name: "output_capture_package".to_owned(),
+            },
+            &ExperimentConfig {
+                timeout_seconds: 60,
+            },
+        );
+
+        assert_eq!(report.status, ExperimentStatus::Passed);
+        assert!(
+            report
+                .stdout
+                .contains("Successfully installed output-capture-package")
+        );
+        assert!(report.stdout.contains("import stdout"));
+        assert!(report.stderr.contains("import stderr"));
     }
 
     #[test]
@@ -501,6 +596,9 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         );
 
         assert_eq!(report.stage, ExperimentStage::Completed);
+        assert!(report.python_version.is_some());
+        assert!(report.duration_ms > 0);
+        assert!(report.stderr.contains("ModuleNotFoundError"));
         assert!(
             report
                 .message

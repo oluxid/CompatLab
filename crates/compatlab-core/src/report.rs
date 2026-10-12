@@ -4,9 +4,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExperimentStatus {
+    /// Installation and import checks both completed successfully.
     Passed,
+    /// A process ran successfully, but installation or the import check returned a failure status.
     Failed,
+    /// An interpreter, environment, or process error prevented a check from completing normally.
     Error,
+    /// Installation or import exceeded its per-operation timeout.
     TimedOut,
 }
 
@@ -14,9 +18,13 @@ pub enum ExperimentStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExperimentStage {
+    /// Interpreter inspection or virtual environment creation.
     EnvironmentSetup,
+    /// Installing the requested package into the isolated environment.
     Installation,
+    /// Importing the requested module after installation.
     ImportCheck,
+    /// Installation and import both completed; `status` records their outcome.
     Completed,
 }
 
@@ -39,6 +47,21 @@ pub struct ExperimentReport {
 mod tests {
     use super::*;
 
+    fn report_fixture(status: ExperimentStatus, stage: ExperimentStage) -> ExperimentReport {
+        ExperimentReport {
+            python_executable: "python".to_owned(),
+            python_version: Some("Python 3.14.7".to_owned()),
+            package: "colorama".to_owned(),
+            import_name: "colorama".to_owned(),
+            status,
+            stage,
+            duration_ms: 1500,
+            stdout: "captured stdout".to_owned(),
+            stderr: "captured stderr".to_owned(),
+            message: Some("Package installed and module imported successfully".to_owned()),
+        }
+    }
+
     #[test]
     fn experiment_status_serializes_to_snake_case() {
         assert_eq!(
@@ -49,6 +72,27 @@ mod tests {
             serde_json::to_string(&ExperimentStatus::TimedOut).unwrap(),
             "\"timed_out\""
         );
+    }
+
+    #[test]
+    fn every_experiment_status_serializes_to_snake_case() {
+        let cases = [
+            (ExperimentStatus::Passed, "passed"),
+            (ExperimentStatus::Failed, "failed"),
+            (ExperimentStatus::Error, "error"),
+            (ExperimentStatus::TimedOut, "timed_out"),
+        ];
+
+        for (status, expected) in cases {
+            assert_eq!(
+                serde_json::to_string(&status).unwrap(),
+                format!("\"{expected}\"")
+            );
+            assert_eq!(
+                serde_json::from_str::<ExperimentStatus>(&format!("\"{expected}\"")).unwrap(),
+                status
+            );
+        }
     }
 
     #[test]
@@ -64,19 +108,29 @@ mod tests {
     }
 
     #[test]
+    fn every_experiment_stage_serializes_to_snake_case() {
+        let cases = [
+            (ExperimentStage::EnvironmentSetup, "environment_setup"),
+            (ExperimentStage::Installation, "installation"),
+            (ExperimentStage::ImportCheck, "import_check"),
+            (ExperimentStage::Completed, "completed"),
+        ];
+
+        for (stage, expected) in cases {
+            assert_eq!(
+                serde_json::to_string(&stage).unwrap(),
+                format!("\"{expected}\"")
+            );
+            assert_eq!(
+                serde_json::from_str::<ExperimentStage>(&format!("\"{expected}\"")).unwrap(),
+                stage
+            );
+        }
+    }
+
+    #[test]
     fn report_round_trips_through_json() {
-        let report = ExperimentReport {
-            python_executable: "python".to_owned(),
-            python_version: Some("Python 3.14.7".to_owned()),
-            package: "colorama".to_owned(),
-            import_name: "colorama".to_owned(),
-            status: ExperimentStatus::Passed,
-            stage: ExperimentStage::Completed,
-            duration_ms: 1500,
-            stdout: String::new(),
-            stderr: String::new(),
-            message: Some("Package imported successfully".to_owned()),
-        };
+        let report = report_fixture(ExperimentStatus::Passed, ExperimentStage::Completed);
 
         let json = serde_json::to_string(&report).unwrap();
         let decoded: ExperimentReport = serde_json::from_str(&json).unwrap();
@@ -94,19 +148,47 @@ mod tests {
     }
 
     #[test]
+    fn every_report_outcome_round_trips_with_and_without_optional_fields() {
+        let statuses = [
+            ExperimentStatus::Passed,
+            ExperimentStatus::Failed,
+            ExperimentStatus::Error,
+            ExperimentStatus::TimedOut,
+        ];
+        let stages = [
+            ExperimentStage::EnvironmentSetup,
+            ExperimentStage::Installation,
+            ExperimentStage::ImportCheck,
+            ExperimentStage::Completed,
+        ];
+
+        for status in statuses.iter() {
+            for stage in stages.iter() {
+                for include_optional_fields in [false, true] {
+                    let mut report = report_fixture(status.clone(), stage.clone());
+                    if !include_optional_fields {
+                        report.python_version = None;
+                        report.message = None;
+                    }
+
+                    let json = serde_json::to_value(&report).unwrap();
+                    let decoded: ExperimentReport = serde_json::from_value(json.clone()).unwrap();
+
+                    assert_eq!(serde_json::to_value(decoded).unwrap(), json);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn report_serializes_optional_fields_as_null() {
-        let report = ExperimentReport {
-            python_executable: "python".to_owned(),
-            python_version: None,
-            package: "example-package".to_owned(),
-            import_name: "example_package".to_owned(),
-            status: ExperimentStatus::Error,
-            stage: ExperimentStage::EnvironmentSetup,
-            duration_ms: 25,
-            stdout: String::new(),
-            stderr: "Python not found".to_owned(),
-            message: None,
-        };
+        let mut report = report_fixture(ExperimentStatus::Error, ExperimentStage::EnvironmentSetup);
+        report.python_version = None;
+        report.package = "example-package".to_owned();
+        report.import_name = "example_package".to_owned();
+        report.duration_ms = 25;
+        report.stderr = "Python not found".to_owned();
+        report.message = None;
 
         let json = serde_json::to_value(&report).unwrap();
 

@@ -100,17 +100,17 @@ These checkmarks reflect the implementation and test results observed during dev
 
 ### 1.3. Complete report lifecycle tests
 
-- [ ] Create a reusable test report fixture.
-- [ ] Test every `ExperimentStatus`.
-- [ ] Test every `ExperimentStage`.
-- [ ] Test reports after interpreter inspection fails.
-- [ ] Test reports after virtual environment creation fails.
-- [ ] Test reports after package installation fails.
-- [ ] Test reports after import fails.
-- [ ] Test reports after timeout.
-- [ ] Test stdout and stderr preservation.
-- [ ] Test optional fields and JSON round-tripping for all outcomes.
-- [ ] Document the meaning of each status and stage.
+- [x] Create a reusable test report fixture.
+- [x] Test every `ExperimentStatus`.
+- [x] Test every `ExperimentStage`.
+- [x] Test reports after interpreter inspection fails.
+- [x] Test reports after virtual environment creation fails.
+- [x] Test reports after package installation fails.
+- [x] Test reports after import fails.
+- [x] Test reports after timeout.
+- [x] Test stdout and stderr preservation.
+- [x] Test optional fields and JSON round-tripping for all outcomes.
+- [x] Document the meaning of each status and stage.
 
 ### 1.4. Improve failure handling
 
