@@ -543,7 +543,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     fn timeout_test_child_process() {
         if std::env::var("COMPATLAB_TIMEOUT_CHILD").is_ok() {
             let executable = std::env::current_exe().unwrap();
-            Command::new(executable)
+            let mut descendant = Command::new(executable)
                 .args([
                     "--exact",
                     "runner::tests::timeout_test_descendant_process",
@@ -555,6 +555,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
                 .spawn()
                 .unwrap();
             std::thread::sleep(std::time::Duration::from_secs(30));
+            let _ = descendant.wait();
         }
     }
 
