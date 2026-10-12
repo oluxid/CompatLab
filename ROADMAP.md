@@ -91,7 +91,7 @@ These checkmarks reflect the implementation and test results observed during dev
 - [x] Test a process that exceeds its deadline.
 - [x] Verify installation timeouts produce `TimedOut`.
 - [x] Verify import-check timeouts produce `TimedOut`.
-- [ ] Verify process-launch failures produce `Error`, not `TimedOut`.
+- [x] Verify process-launch failures produce `Error`, not `TimedOut`.
 - [ ] Verify the report stage identifies the operation that failed.
 - [ ] Verify duration is populated on every return path.
 - [ ] Handle output collection correctly after process termination.

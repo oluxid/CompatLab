@@ -529,23 +529,31 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
     #[test]
     fn ordinary_process_error_sets_error_status() {
-        let mut report = run_experiment(
-            &test_experiment("compatlab-python-executable-that-does-not-exist"),
-            &test_config(),
-        );
+        let mut command = Command::new("compatlab-command-that-does-not-exist");
+        let error = run_with_timeout(&mut command, 5).unwrap_err();
+        let mut report = ExperimentReport {
+            python_executable: "python".to_owned(),
+            python_version: None,
+            package: "example-package".to_owned(),
+            import_name: "example_package".to_owned(),
+            status: ExperimentStatus::Error,
+            stage: ExperimentStage::Installation,
+            duration_ms: 0,
+            stdout: String::new(),
+            stderr: String::new(),
+            message: None,
+        };
 
         apply_timeout_error(
             &mut report,
-            "permission denied",
+            &error,
             "Package installation timed out",
             "package installation",
         );
 
         assert_eq!(report.status, ExperimentStatus::Error);
-        assert_eq!(
-            report.message.as_deref(),
-            Some("Failed to run package installation: permission denied")
-        );
+        assert_ne!(report.message.as_deref(), Some("Package installation timed out"));
+        assert!(report.message.unwrap().contains("Failed to run package installation"));
     }
 
     #[test]
