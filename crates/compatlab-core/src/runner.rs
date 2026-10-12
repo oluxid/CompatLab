@@ -405,4 +405,46 @@ mod tests {
             "Child process took too long to terminate: {elapsed:?}"
         );
     }
+
+    #[test]
+    fn timeout_error_sets_timed_out_status() {
+        let mut report = run_experiment(
+            &test_experiment("compatlab-python-executable-that-does-not-exist"),
+            &test_config(),
+        );
+
+        apply_timeout_error(
+            &mut report,
+            "timeout",
+            "Package installation timed out",
+            "package installation",
+        );
+
+        assert_eq!(report.status, ExperimentStatus::TimedOut);
+        assert_eq!(
+            report.message.as_deref(),
+            Some("Package installation timed out")
+        );
+    }
+
+    #[test]
+    fn ordinary_process_error_sets_error_status() {
+        let mut report = run_experiment(
+            &test_experiment("compatlab-python-executable-that-does-not-exist"),
+            &test_config(),
+        );
+
+        apply_timeout_error(
+            &mut report,
+            "permission denied",
+            "Package installation timed out",
+            "package installation",
+        );
+
+        assert_eq!(report.status, ExperimentStatus::Error);
+        assert_eq!(
+            report.message.as_deref(),
+            Some("Failed to run package installation: permission denied")
+        );
+    }
 }
