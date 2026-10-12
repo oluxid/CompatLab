@@ -48,8 +48,8 @@ mod tests {
             status,
             stage,
             duration_ms: 1500,
-            stdout: String::new(),
-            stderr: String::new(),
+            stdout: "captured stdout".to_owned(),
+            stderr: "captured stderr".to_owned(),
             message: Some("Package installed and module imported successfully".to_owned()),
         }
     }
@@ -137,6 +137,39 @@ mod tests {
         assert_eq!(decoded.stdout, report.stdout);
         assert_eq!(decoded.stderr, report.stderr);
         assert_eq!(decoded.message, report.message);
+    }
+
+    #[test]
+    fn every_report_outcome_round_trips_with_and_without_optional_fields() {
+        let statuses = [
+            ExperimentStatus::Passed,
+            ExperimentStatus::Failed,
+            ExperimentStatus::Error,
+            ExperimentStatus::TimedOut,
+        ];
+        let stages = [
+            ExperimentStage::EnvironmentSetup,
+            ExperimentStage::Installation,
+            ExperimentStage::ImportCheck,
+            ExperimentStage::Completed,
+        ];
+
+        for status in statuses.iter().cloned() {
+            for stage in stages.iter().cloned() {
+                for include_optional_fields in [false, true] {
+                    let mut report = report_fixture(status.clone(), stage.clone());
+                    if !include_optional_fields {
+                        report.python_version = None;
+                        report.message = None;
+                    }
+
+                    let json = serde_json::to_value(&report).unwrap();
+                    let decoded: ExperimentReport = serde_json::from_value(json.clone()).unwrap();
+
+                    assert_eq!(serde_json::to_value(decoded).unwrap(), json);
+                }
+            }
+        }
     }
 
     #[test]

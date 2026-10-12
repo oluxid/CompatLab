@@ -109,7 +109,7 @@ These checkmarks reflect the implementation and test results observed during dev
 - [x] Test reports after import fails.
 - [x] Test reports after timeout.
 - [x] Test stdout and stderr preservation.
-- [ ] Test optional fields and JSON round-tripping for all outcomes.
+- [x] Test optional fields and JSON round-tripping for all outcomes.
 - [ ] Document the meaning of each status and stage.
 
 ### 1.4. Improve failure handling
