@@ -26,8 +26,12 @@ fn apply_timeout_error(
             report.status = ExperimentStatus::TimedOut;
             report.message = Some(timeout_message.to_owned());
             if let Some(output) = output {
-                report.stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-                report.stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+                report
+                    .stdout
+                    .push_str(&String::from_utf8_lossy(&output.stdout));
+                report
+                    .stderr
+                    .push_str(&String::from_utf8_lossy(&output.stderr));
             }
             if let Some(error) = cleanup_error {
                 report
@@ -66,6 +70,18 @@ fn run_experiment_with_environment(
         stderr: String::new(),
         message: None,
     };
+
+    if let Err(error) = experiment.validate() {
+        report.message = Some(format!("Invalid experiment: {error}"));
+        report.duration_ms = elapsed_millis(started);
+        return report;
+    }
+
+    if let Err(error) = config.validate() {
+        report.message = Some(format!("Invalid configuration: {error}"));
+        report.duration_ms = elapsed_millis(started);
+        return report;
+    }
 
     let interpreter = match inspect_interpreter(&experiment.python_executable) {
         Ok(interpreter) => interpreter,
@@ -394,6 +410,44 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
         assert!(report.stdout.is_empty());
         assert!(report.stderr.is_empty());
+    }
+
+    #[test]
+    fn invalid_experiment_input_returns_error_without_running_python() {
+        let report = run_experiment(
+            &Experiment {
+                python_executable: "compatlab-python-executable-that-does-not-exist".to_owned(),
+                package: String::new(),
+                import_name: "example_package".to_owned(),
+            },
+            &test_config(),
+        );
+
+        assert_eq!(report.status, ExperimentStatus::Error);
+        assert_eq!(report.stage, ExperimentStage::EnvironmentSetup);
+        assert_eq!(
+            report.message.as_deref(),
+            Some("Invalid experiment: Package requirement must not be empty")
+        );
+        assert!(report.python_version.is_none());
+        assert!(report.duration_ms > 0);
+    }
+
+    #[test]
+    fn invalid_configuration_returns_error_without_running_python() {
+        let report = run_experiment(
+            &test_experiment("compatlab-python-executable-that-does-not-exist"),
+            &ExperimentConfig { timeout_seconds: 0 },
+        );
+
+        assert_eq!(report.status, ExperimentStatus::Error);
+        assert_eq!(report.stage, ExperimentStage::EnvironmentSetup);
+        assert_eq!(
+            report.message.as_deref(),
+            Some("Invalid configuration: Timeout must be greater than zero seconds")
+        );
+        assert!(report.python_version.is_none());
+        assert!(report.duration_ms > 0);
     }
 
     #[test]
